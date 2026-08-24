@@ -44,7 +44,7 @@ body {
 .hero-section {
   background: linear-gradient(135deg, var(--primary-dark) 0%, #152840 100%);
   color: var(--white);
-  padding: 10vh 20px 5vh; /* Padding basado en porcentajes de pantalla */
+  padding: 3vh 20px 3vh; /* Padding basado en porcentajes de pantalla */
   text-align: center;
   border-bottom-left-radius: 30px;
   border-bottom-right-radius: 30px;
@@ -53,9 +53,17 @@ body {
 
 .logo-icon {
   font-size: clamp(3rem, 10vw, 4rem); /* El tamaño se adapta dinámicamente */
-  margin-bottom: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
 }
+
+.logo-icon img{
+  width: 30%;
+  padding: 0px;
+}
+
 
 .brand-name {
   font-size: clamp(2rem, 8vw, 2.5rem);
@@ -87,7 +95,6 @@ body {
   padding: 5vh 20px;
   display: flex;
   flex-direction: column;
-  justify-content: center; /* Centra los botones verticalmente */
   gap: 15px;
   max-width: 500px; /* Evita que los botones sean infinitamente anchos */
   margin: 0 auto; /* Centra el contenido internamente */

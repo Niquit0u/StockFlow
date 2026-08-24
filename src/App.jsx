@@ -1,3 +1,4 @@
+import logo from './assets/logo.png'
 import './App.css'
 
 function App() {
@@ -7,7 +8,9 @@ function App() {
       {/* Sección Superior: Logo y Bienvenida */}
       <header className="hero-section">
         <div className="logo-container">
-          <div className="logo-icon">📦↗️</div>
+          <div className="logo-icon">
+            <img src={logo} alt="Logo" className="logo-image" />
+          </div>
           <h1 className="brand-name">
             STOCK<span className="highlight">FLOW</span>
           </h1>
