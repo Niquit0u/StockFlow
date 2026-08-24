@@ -1,0 +1,22 @@
+{
+  "name": "StockFlow - Gestión de Inventario",
+  "short_name": "StockFlow",
+  "description": "Sistema móvil inteligente bajo metodología FEFO para control total y flujo constante de inventarios.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F4F7F6",
+  "theme_color": "#1F3B5C",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
