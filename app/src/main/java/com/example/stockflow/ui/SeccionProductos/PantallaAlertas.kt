@@ -42,7 +42,7 @@ fun PantallaAlertas(lotes: List<LoteItem>) {
             TopAppBar(
                 title = {
                     Text(
-                        text = if (categoriaSeleccionada == null) "Stock Flow - Inventario" else "Rubro: $categoriaSeleccionada",
+                        text = if (categoriaSeleccionada == null) "Stock Flow - Inventario" else "$categoriaSeleccionada",
                         fontWeight = FontWeight.Bold
                     )
                 },
