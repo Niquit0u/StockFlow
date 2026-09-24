@@ -20,7 +20,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.style.TextAlign
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,7 +41,7 @@ fun PantallaAlertas(lotes: List<LoteItem>) {
             TopAppBar(
                 title = {
                     Text(
-                        text = if (categoriaSeleccionada == null) "Stock Flow - Inventario" else "Rubro: $categoriaSeleccionada",
+                        text = if (categoriaSeleccionada == null) "Stock Flow - Inventario" else "$categoriaSeleccionada",
                         fontWeight = FontWeight.Bold
                     )
                 },
