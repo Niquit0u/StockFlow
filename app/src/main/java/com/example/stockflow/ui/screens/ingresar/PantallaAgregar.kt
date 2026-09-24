@@ -13,17 +13,25 @@ import androidx.compose.ui.unit.sp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PantallaAgregar(onAgregarLote: (LoteItem) -> Unit) {
+fun PantallaAgregar(
+    codigoInicial: String = "", // Recibe el código capturado por el escáner
+    onAgregarLote: (LoteItem) -> Unit
+) {
     var nombre by remember { mutableStateOf("") }
-    var codigoBarra by remember { mutableStateOf("") }
+    var codigoBarra by remember { mutableStateOf(codigoInicial) }
     var cantidad by remember { mutableStateOf("") }
     var fechaVencimiento by remember { mutableStateOf("") }
     var mensajeExito by remember { mutableStateOf(false) }
 
-    // Estados para controlar el menú desplegable de categorías
     var expandidoCategoria by remember { mutableStateOf(false) }
-    // Por defecto selecciona la primera opción ("Lácteos")
     var categoriaSeleccionada by remember { mutableStateOf(categoriasDisponibles[0]) }
+
+    // Actualiza el campo de código de barras si cambia el valor transferido desde el escáner
+    LaunchedEffect(codigoInicial) {
+        if (codigoInicial.isNotBlank()) {
+            codigoBarra = codigoInicial
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -54,13 +62,13 @@ fun PantallaAgregar(onAgregarLote: (LoteItem) -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text("📷 Escanear Código de Barras")
+                Text("📷 Generar Código Aleatorio (Prueba)")
             }
 
             OutlinedTextField(
                 value = codigoBarra,
                 onValueChange = { codigoBarra = it },
-                label = { Text("Código de Barras") },
+                label = { Text("Código de Barras (EAN/QR)") },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -71,7 +79,6 @@ fun PantallaAgregar(onAgregarLote: (LoteItem) -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // MENÚ DESPLEGABLE DE SECCIONES (RUBROS)
             ExposedDropdownMenuBox(
                 expanded = expandidoCategoria,
                 onExpandedChange = { expandidoCategoria = !expandidoCategoria }
@@ -79,7 +86,7 @@ fun PantallaAgregar(onAgregarLote: (LoteItem) -> Unit) {
                 OutlinedTextField(
                     value = categoriaSeleccionada,
                     onValueChange = {},
-                    readOnly = true, // Evita que el teclado se abra, comportándose como un botón
+                    readOnly = true,
                     label = { Text("Sección / Rubro") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandidoCategoria) },
                     modifier = Modifier
@@ -126,7 +133,7 @@ fun PantallaAgregar(onAgregarLote: (LoteItem) -> Unit) {
                         val nuevoLote = LoteItem(
                             idLote = "L" + (100..999).random(),
                             nombreProducto = nombre,
-                            categoria = categoriaSeleccionada, // Guarda la categoría elegida (ej. "Otros")
+                            categoria = categoriaSeleccionada,
                             codigoBarra = if (codigoBarra.isBlank()) "779000000000" else codigoBarra,
                             cantidadActual = cantInt,
                             fechaVencimiento = fechaVencimiento,
@@ -136,12 +143,11 @@ fun PantallaAgregar(onAgregarLote: (LoteItem) -> Unit) {
                         onAgregarLote(nuevoLote)
                         mensajeExito = true
 
-                        // Limpiar formulario tras guardar
+                        // Limpiamos los campos
                         nombre = ""
                         codigoBarra = ""
                         cantidad = ""
                         fechaVencimiento = ""
-                        categoriaSeleccionada = categoriasDisponibles[0] // Reinicia a la primera opción
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -152,7 +158,7 @@ fun PantallaAgregar(onAgregarLote: (LoteItem) -> Unit) {
 
             if (mensajeExito) {
                 Text(
-                    text = "✅ ¡Lote registrado con éxito en el sistema!",
+                    text = "✅ ¡Lote registrado con éxito en la categoría '$categoriaSeleccionada'!",
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(top = 8.dp)
