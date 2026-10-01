@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.List
@@ -49,13 +50,69 @@ fun PantallaAlertas(lotes: List<LoteItem>) {
     }
 
     /*
-     * Filtramos primero por categoría y después por búsqueda.
+     * Producto que debe quedar expandido cuando
+     * llegamos a una categoría desde la búsqueda.
+     */
+    var productoAExpandir by remember {
+        mutableStateOf<String?>(null)
+    }
+
+    /*
+     * Resultados de búsqueda global.
+     *
+     * Busca por nombre del producto en TODOS los lotes,
+     * independientemente de la categoría.
+     */
+    val resultadosBusqueda = remember(
+        lotes,
+        textoBusqueda
+    ) {
+
+        if (textoBusqueda.isBlank()) {
+            emptyList()
+        } else {
+
+            lotes
+                .filter {
+                    it.nombreProducto.contains(
+                        textoBusqueda,
+                        ignoreCase = true
+                    )
+                }
+                .groupBy {
+                    it.nombreProducto
+                }
+                .map { (_, listaLotes) ->
+
+                    val primerLote = listaLotes.first()
+
+                    Producto(
+                        nombreProducto = primerLote.nombreProducto,
+                        categoria = primerLote.categoria,
+                        codigoBarra = primerLote.codigoBarra,
+                        totalCantidad = listaLotes.sumOf {
+                            it.cantidadActual
+                        },
+                        lotes = listaLotes
+                    )
+                }
+                .sortedBy {
+                    it.nombreProducto
+                }
+        }
+    }
+
+    /*
+     * Filtramos los lotes según la categoría seleccionada
+     * y el texto de búsqueda.
      */
     val lotesFiltrados = remember(
         lotes,
         categoriaSeleccionada,
-        textoBusqueda
+        textoBusqueda,
+        mostrarBusqueda
     ) {
+
         lotes.filter { lote ->
 
             val coincideCategoria =
@@ -66,12 +123,9 @@ fun PantallaAlertas(lotes: List<LoteItem>) {
                         )
 
             val coincideBusqueda =
-                textoBusqueda.isBlank() ||
+                !mostrarBusqueda ||
+                        textoBusqueda.isBlank() ||
                         lote.nombreProducto.contains(
-                            textoBusqueda,
-                            ignoreCase = true
-                        ) ||
-                        lote.codigoBarra.contains(
                             textoBusqueda,
                             ignoreCase = true
                         )
@@ -88,51 +142,87 @@ fun PantallaAlertas(lotes: List<LoteItem>) {
         ordenSeleccionado
     ) {
 
-        lotesFiltrados
-            .groupBy { it.nombreProducto }
+        val productos = lotesFiltrados
+            .groupBy {
+                it.nombreProducto
+            }
             .map { (nombre, listaLotes) ->
 
-                val lotesOrdenados = when (ordenSeleccionado) {
+                val lotesOrdenados = when (
+                    ordenSeleccionado
+                ) {
 
                     "Próximo a vencer" ->
                         listaLotes.sortedBy {
-                            convertirFecha(it.fechaVencimiento)
+                            convertirFecha(
+                                it.fechaVencimiento
+                            )
                         }
 
                     "Más lejano a vencer" ->
                         listaLotes.sortedByDescending {
-                            convertirFecha(it.fechaVencimiento)
+                            convertirFecha(
+                                it.fechaVencimiento
+                            )
                         }
 
                     else ->
                         listaLotes.sortedBy {
-                            convertirFecha(it.fechaVencimiento)
+                            convertirFecha(
+                                it.fechaVencimiento
+                            )
                         }
                 }
 
                 Producto(
                     nombreProducto = nombre,
-                    categoria = listaLotes.firstOrNull()?.categoria
-                        ?: "General",
-                    codigoBarra = listaLotes.firstOrNull()?.codigoBarra
-                        ?: "",
+                    categoria = listaLotes.firstOrNull()
+                        ?.categoria ?: "General",
+
+                    codigoBarra = listaLotes.firstOrNull()
+                        ?.codigoBarra ?: "",
+
                     totalCantidad = listaLotes.sumOf {
                         it.cantidadActual
                     },
+
                     lotes = lotesOrdenados
                 )
             }
-            .sortedWith(
-                compareBy {
+
+        /*
+         * También ordenamos los PRODUCTOS completos,
+         * no solamente los lotes.
+         */
+        when (ordenSeleccionado) {
+
+            "Próximo a vencer" ->
+                productos.sortedBy {
                     convertirFecha(
-                        it.lotes.firstOrNull()?.fechaVencimiento
+                        it.lotes.firstOrNull()
+                            ?.fechaVencimiento
                             ?: "31/12/2099"
                     )
                 }
-            )
+
+            "Más lejano a vencer" ->
+                productos.sortedByDescending {
+                    convertirFecha(
+                        it.lotes.firstOrNull()
+                            ?.fechaVencimiento
+                            ?: "01/01/1970"
+                    )
+                }
+
+            else ->
+                productos.sortedBy {
+                    it.nombreProducto
+                }
+        }
     }
 
     Scaffold(
+
         topBar = {
 
             TopAppBar(
@@ -143,45 +233,65 @@ fun PantallaAlertas(lotes: List<LoteItem>) {
 
                         OutlinedTextField(
                             value = textoBusqueda,
+
                             onValueChange = {
                                 textoBusqueda = it
                             },
-                            modifier = Modifier.fillMaxWidth(),
+
+                            modifier = Modifier
+                                .fillMaxWidth(),
+
                             placeholder = {
-                                Text("Buscar producto o código...")
+                                Text(
+                                    "Buscar producto..."
+                                )
                             },
+
                             singleLine = true
                         )
 
                     } else {
 
                         Text(
-                            text = if (
-                                categoriaSeleccionada == null
-                            ) {
-                                "Stock Flow - Inventario"
-                            } else {
-                                categoriaSeleccionada!!
-                            },
-                            fontWeight = FontWeight.Bold
+                            text =
+                                if (
+                                    categoriaSeleccionada == null
+                                ) {
+                                    "Stock Flow - Inventario"
+                                } else {
+                                    categoriaSeleccionada!!
+                                },
+
+                            fontWeight =
+                                FontWeight.Bold
                         )
                     }
                 },
 
                 navigationIcon = {
 
-                    if (categoriaSeleccionada != null) {
+                    if (
+                        categoriaSeleccionada != null
+                    ) {
 
                         IconButton(
+
                             onClick = {
+
                                 categoriaSeleccionada = null
                                 textoBusqueda = ""
                                 mostrarBusqueda = false
+                                productoAExpandir = null
                             }
+
                         ) {
+
                             Icon(
-                                imageVector = Icons.Default.ArrowBack,
-                                contentDescription = "Volver"
+                                imageVector =
+                                    Icons.Default.ArrowBack,
+
+                                contentDescription =
+                                    "Volver"
                             )
                         }
                     }
@@ -189,179 +299,385 @@ fun PantallaAlertas(lotes: List<LoteItem>) {
 
                 actions = {
 
-                    if (categoriaSeleccionada != null) {
+                    /*
+                     * LA LUPA AHORA APARECE TAMBIÉN
+                     * EN LA PANTALLA PRINCIPAL.
+                     */
+                    IconButton(
 
-                        IconButton(
-                            onClick = {
-                                mostrarBusqueda = !mostrarBusqueda
+                        onClick = {
 
-                                if (!mostrarBusqueda) {
-                                    textoBusqueda = ""
-                                }
+                            mostrarBusqueda =
+                                !mostrarBusqueda
+
+                            if (!mostrarBusqueda) {
+
+                                textoBusqueda = ""
                             }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = "Buscar"
-                            )
                         }
+
+                    ) {
+
+                        Icon(
+                            imageVector =
+                                if (mostrarBusqueda)
+                                    Icons.Default.Close
+                                else
+                                    Icons.Default.Search,
+
+                            contentDescription =
+                                if (mostrarBusqueda)
+                                    "Cerrar búsqueda"
+                                else
+                                    "Buscar producto"
+                        )
                     }
                 },
 
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor =
-                        MaterialTheme.colorScheme.primaryContainer
-                )
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+
+                        containerColor =
+                            MaterialTheme
+                                .colorScheme
+                                .primaryContainer
+                    )
             )
         }
 
     ) { paddingValues ->
 
         Column(
+
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp)
         ) {
 
-            if (categoriaSeleccionada == null) {
+            /*
+             * ------------------------------------------------
+             * PANTALLA PRINCIPAL: CATEGORÍAS
+             * ------------------------------------------------
+             */
+
+            if (
+                categoriaSeleccionada == null
+            ) {
 
                 /*
-                 * PANTALLA DE CATEGORÍAS
+                 * Si estamos buscando mostramos
+                 * los resultados globales.
                  */
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement =
-                        Arrangement.spacedBy(12.dp),
-                    contentPadding =
-                        PaddingValues(vertical = 16.dp)
+                if (
+                    mostrarBusqueda &&
+                    textoBusqueda.isNotBlank()
                 ) {
 
-                    items(categoriasDisponibles) { categoria ->
+                    if (
+                        resultadosBusqueda.isEmpty()
+                    ) {
 
-                        TarjetaCategoria(
-                            nombreCategoria = categoria,
-                            onClick = {
-                                categoriaSeleccionada = categoria
+                        Box(
+                            modifier =
+                                Modifier.fillMaxSize(),
+
+                            contentAlignment =
+                                Alignment.TopCenter
+                        ) {
+
+                            Text(
+                                text =
+                                    "No se encontraron productos.",
+
+                                color =
+                                    Color.Gray,
+
+                                modifier =
+                                    Modifier.padding(
+                                        top = 30.dp
+                                    )
+                            )
+                        }
+
+                    } else {
+
+                        LazyColumn(
+
+                            modifier =
+                                Modifier.fillMaxSize(),
+
+                            verticalArrangement =
+                                Arrangement.spacedBy(10.dp),
+
+                            contentPadding =
+                                PaddingValues(
+                                    top = 16.dp,
+                                    bottom = 16.dp
+                                )
+                        ) {
+
+                            items(
+                                items =
+                                    resultadosBusqueda,
+
+                                key = {
+                                    it.nombreProducto
+                                }
+                            ) { producto ->
+
+                                TarjetaResultadoBusqueda(
+
+                                    producto = producto,
+
+                                    onClick = {
+
+                                        /*
+                                         * Guardamos el producto
+                                         * que queremos abrir.
+                                         */
+                                        productoAExpandir =
+                                            producto.nombreProducto
+
+                                        /*
+                                         * Entramos automáticamente
+                                         * a su categoría.
+                                         */
+                                        categoriaSeleccionada =
+                                            producto.categoria
+
+                                        /*
+                                         * Cerramos la búsqueda.
+                                         */
+                                        mostrarBusqueda =
+                                            false
+
+                                        textoBusqueda = ""
+                                    }
+                                )
                             }
-                        )
+                        }
+                    }
+
+                } else {
+
+                    /*
+                     * MODO NORMAL:
+                     * mostramos las categorías.
+                     */
+                    LazyColumn(
+
+                        modifier =
+                            Modifier.fillMaxSize(),
+
+                        verticalArrangement =
+                            Arrangement.spacedBy(12.dp),
+
+                        contentPadding =
+                            PaddingValues(
+                                vertical = 16.dp
+                            )
+                    ) {
+
+                        items(
+                            categoriasDisponibles
+                        ) { categoria ->
+
+                            TarjetaCategoria(
+
+                                nombreCategoria =
+                                    categoria,
+
+                                onClick = {
+
+                                    categoriaSeleccionada =
+                                        categoria
+
+                                    productoAExpandir =
+                                        null
+                                }
+                            )
+                        }
                     }
                 }
 
             } else {
 
                 /*
-                 * CONTROLES DE ORDENAMIENTO
+                 * ------------------------------------------------
+                 * PRODUCTOS DE UNA CATEGORÍA
+                 * ------------------------------------------------
                  */
 
                 Box(
+
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 12.dp)
                 ) {
 
                     OutlinedButton(
+
                         onClick = {
+
                             menuOrdenExpandido =
                                 !menuOrdenExpandido
                         },
-                        modifier = Modifier.fillMaxWidth()
+
+                        modifier =
+                            Modifier.fillMaxWidth()
                     ) {
 
                         Text(
-                            text = "Ordenar: $ordenSeleccionado"
+                            text =
+                                "Ordenar: " +
+                                        ordenSeleccionado
                         )
 
                         Icon(
+
                             imageVector =
-                                if (menuOrdenExpandido)
+
+                                if (
+                                    menuOrdenExpandido
+                                ) {
                                     Icons.Default.KeyboardArrowUp
-                                else
-                                    Icons.Default.KeyboardArrowDown,
-                            contentDescription = "Cambiar orden"
+                                } else {
+                                    Icons.Default.KeyboardArrowDown
+                                },
+
+                            contentDescription =
+                                "Cambiar orden"
                         )
                     }
 
                     DropdownMenu(
-                        expanded = menuOrdenExpandido,
+
+                        expanded =
+                            menuOrdenExpandido,
+
                         onDismissRequest = {
-                            menuOrdenExpandido = false
+
+                            menuOrdenExpandido =
+                                false
                         }
                     ) {
 
                         DropdownMenuItem(
+
                             text = {
-                                Text("Próximo a vencer")
+                                Text(
+                                    "Próximo a vencer"
+                                )
                             },
+
                             onClick = {
+
                                 ordenSeleccionado =
                                     "Próximo a vencer"
-                                menuOrdenExpandido = false
+
+                                menuOrdenExpandido =
+                                    false
                             }
                         )
 
                         DropdownMenuItem(
+
                             text = {
-                                Text("Más lejano a vencer")
+                                Text(
+                                    "Más lejano a vencer"
+                                )
                             },
+
                             onClick = {
+
                                 ordenSeleccionado =
                                     "Más lejano a vencer"
-                                menuOrdenExpandido = false
+
+                                menuOrdenExpandido =
+                                    false
                             }
                         )
                     }
                 }
 
                 Spacer(
-                    modifier = Modifier.height(12.dp)
+                    modifier =
+                        Modifier.height(12.dp)
                 )
 
                 /*
                  * LISTA DE PRODUCTOS
                  */
 
-                if (productosAgrupados.isEmpty()) {
+                if (
+                    productosAgrupados.isEmpty()
+                ) {
 
                     Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.TopCenter
+
+                        modifier =
+                            Modifier.fillMaxSize(),
+
+                        contentAlignment =
+                            Alignment.TopCenter
                     ) {
 
                         Text(
-                            text = if (
-                                textoBusqueda.isNotBlank()
-                            ) {
-                                "No se encontraron productos."
-                            } else {
-                                "No hay productos registrados."
-                            },
-                            color = Color.Gray,
-                            modifier = Modifier.padding(
-                                top = 30.dp
-                            )
+
+                            text =
+                                if (
+                                    textoBusqueda.isNotBlank()
+                                ) {
+                                    "No se encontraron productos."
+                                } else {
+                                    "No hay productos registrados."
+                                },
+
+                            color =
+                                Color.Gray,
+
+                            modifier =
+                                Modifier.padding(
+                                    top = 30.dp
+                                )
                         )
                     }
 
                 } else {
 
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+
+                        modifier =
+                            Modifier.fillMaxSize(),
+
                         verticalArrangement =
                             Arrangement.spacedBy(10.dp),
+
                         contentPadding =
-                            PaddingValues(bottom = 16.dp)
+                            PaddingValues(
+                                bottom = 16.dp
+                            )
                     ) {
 
                         items(
-                            items = productosAgrupados,
+
+                            items =
+                                productosAgrupados,
+
                             key = {
                                 it.nombreProducto
                             }
+
                         ) { producto ->
 
                             TarjetaProductoExpandible(
-                                producto = producto
+
+                                producto = producto,
+
+                                expandidoInicial =
+                                    producto.nombreProducto ==
+                                            productoAExpandir
                             )
                         }
                     }
@@ -371,185 +687,422 @@ fun PantallaAlertas(lotes: List<LoteItem>) {
     }
 }
 
+
 /*
- * Convierte una fecha DD/MM/AAAA en un valor que
- * permite ordenarla correctamente.
+ * ------------------------------------------------
+ * RESULTADO DE BÚSQUEDA
+ * ------------------------------------------------
  */
-fun convertirFecha(fecha: String): Long {
+
+@Composable
+fun TarjetaResultadoBusqueda(
+
+    producto: Producto,
+
+    onClick: () -> Unit
+
+) {
+
+    Card(
+
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                onClick()
+            },
+
+        shape =
+            RoundedCornerShape(12.dp),
+
+        elevation =
+            CardDefaults.cardElevation(
+                defaultElevation = 3.dp
+            ),
+
+        colors =
+            CardDefaults.cardColors(
+                containerColor =
+                    MaterialTheme
+                        .colorScheme
+                        .surfaceVariant
+            )
+    ) {
+
+        Row(
+
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+
+            verticalAlignment =
+                Alignment.CenterVertically
+        ) {
+
+            Icon(
+
+                imageVector =
+                    Icons.Default.List,
+
+                contentDescription =
+                    "Producto",
+
+                tint =
+                    MaterialTheme
+                        .colorScheme
+                        .primary,
+
+                modifier =
+                    Modifier.size(30.dp)
+            )
+
+            Spacer(
+                modifier =
+                    Modifier.width(14.dp)
+            )
+
+            Column(
+                modifier =
+                    Modifier.weight(1f)
+            ) {
+
+                Text(
+
+                    text =
+                        producto.nombreProducto,
+
+                    fontWeight =
+                        FontWeight.Bold,
+
+                    fontSize =
+                        17.sp
+                )
+
+                Text(
+
+                    text =
+                        producto.categoria,
+
+                    fontSize =
+                        13.sp,
+
+                    color =
+                        Color.Gray
+                )
+            }
+
+            Icon(
+
+                imageVector =
+                    Icons.Default.KeyboardArrowDown,
+
+                contentDescription =
+                    "Abrir"
+            )
+        }
+    }
+}
+
+
+/*
+ * ------------------------------------------------
+ * CONVERSIÓN DE FECHA
+ * ------------------------------------------------
+ */
+
+fun convertirFecha(
+    fecha: String
+): Long {
 
     return try {
 
-        val formato = SimpleDateFormat(
-            "dd/MM/yyyy",
-            Locale.getDefault()
-        )
+        val formato =
+            SimpleDateFormat(
+                "dd/MM/yyyy",
+                Locale.getDefault()
+            )
 
         formato.isLenient = false
 
-        formato.parse(fecha)?.time
-            ?: Long.MAX_VALUE
+        formato.parse(
+            fecha
+        )?.time ?: Long.MAX_VALUE
 
-    } catch (e: Exception) {
+    } catch (
+        e: Exception
+    ) {
 
         Long.MAX_VALUE
     }
 }
 
+
 /*
- * Tarjeta de cada categoría.
+ * ------------------------------------------------
+ * TARJETA DE CATEGORÍA
+ * ------------------------------------------------
  */
+
 @Composable
 fun TarjetaCategoria(
+
     nombreCategoria: String,
+
     onClick: () -> Unit
+
 ) {
 
     Card(
+
         modifier = Modifier
             .fillMaxWidth()
             .height(80.dp)
             .clickable {
                 onClick()
             },
-        shape = RoundedCornerShape(12.dp),
+
+        shape =
+            RoundedCornerShape(12.dp),
+
         elevation =
             CardDefaults.cardElevation(
                 defaultElevation = 4.dp
             ),
+
         colors =
             CardDefaults.cardColors(
                 containerColor =
-                    MaterialTheme.colorScheme.surfaceVariant
+                    MaterialTheme
+                        .colorScheme
+                        .surfaceVariant
             )
     ) {
 
         Row(
+
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp),
+                .padding(
+                    horizontal = 20.dp
+                ),
+
             verticalAlignment =
                 Alignment.CenterVertically
         ) {
 
             Icon(
-                imageVector = Icons.Default.List,
-                contentDescription = "Categoría",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(32.dp)
+
+                imageVector =
+                    Icons.Default.List,
+
+                contentDescription =
+                    "Categoría",
+
+                tint =
+                    MaterialTheme
+                        .colorScheme
+                        .primary,
+
+                modifier =
+                    Modifier.size(32.dp)
             )
 
             Spacer(
-                modifier = Modifier.width(16.dp)
+                modifier =
+                    Modifier.width(16.dp)
             )
 
             Text(
-                text = nombreCategoria,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
+
+                text =
+                    nombreCategoria,
+
+                fontSize =
+                    20.sp,
+
+                fontWeight =
+                    FontWeight.Bold
             )
         }
     }
 }
 
+
 /*
- * Tarjeta de producto expandible.
+ * ------------------------------------------------
+ * TARJETA DE PRODUCTO
+ * ------------------------------------------------
  */
+
 @Composable
 fun TarjetaProductoExpandible(
-    producto: Producto
+
+    producto: Producto,
+
+    expandidoInicial: Boolean = false
+
 ) {
 
-    var expandido by remember {
-        mutableStateOf(false)
+    var expandido by remember(
+        producto.nombreProducto
+    ) {
+        mutableStateOf(
+            expandidoInicial
+        )
+    }
+
+    LaunchedEffect(
+        expandidoInicial
+    ) {
+
+        if (expandidoInicial) {
+            expandido = true
+        }
     }
 
     Card(
+
         elevation =
             CardDefaults.cardElevation(
                 defaultElevation = 3.dp
             ),
-        shape = RoundedCornerShape(12.dp),
+
+        shape =
+            RoundedCornerShape(12.dp),
+
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
-                expandido = !expandido
+
+                expandido =
+                    !expandido
             }
     ) {
 
         Column(
-            modifier = Modifier.padding(16.dp)
+
+            modifier =
+                Modifier.padding(16.dp)
         ) {
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+
+                modifier =
+                    Modifier.fillMaxWidth(),
+
                 verticalAlignment =
                     Alignment.CenterVertically
             ) {
 
                 Column(
-                    modifier = Modifier.weight(1f)
+
+                    modifier =
+                        Modifier.weight(1f)
                 ) {
 
                     Text(
-                        text = producto.nombreProducto,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp
+
+                        text =
+                            producto.nombreProducto,
+
+                        fontWeight =
+                            FontWeight.Bold,
+
+                        fontSize =
+                            17.sp
                     )
 
                     Text(
+
                         text =
-                            "EAN: ${producto.codigoBarra} • " +
-                                    "${producto.lotes.size} lote(s)",
-                        fontSize = 12.sp,
-                        color = Color.Gray
+                            "EAN: " +
+                                    producto.codigoBarra +
+                                    " • " +
+                                    producto.lotes.size +
+                                    " lote(s)",
+
+                        fontSize =
+                            12.sp,
+
+                        color =
+                            Color.Gray
                     )
                 }
 
                 Surface(
+
                     color =
-                        MaterialTheme.colorScheme.primaryContainer,
-                    shape = RoundedCornerShape(8.dp)
+                        MaterialTheme
+                            .colorScheme
+                            .primaryContainer,
+
+                    shape =
+                        RoundedCornerShape(8.dp)
                 ) {
 
                     Text(
+
                         text =
                             "${producto.totalCantidad} u. total",
-                        modifier = Modifier.padding(
-                            horizontal = 8.dp,
-                            vertical = 4.dp
-                        ),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
+
+                        modifier =
+                            Modifier.padding(
+                                horizontal = 8.dp,
+                                vertical = 4.dp
+                            ),
+
+                        fontWeight =
+                            FontWeight.Bold,
+
+                        fontSize =
+                            13.sp
                     )
                 }
 
                 Spacer(
-                    modifier = Modifier.width(8.dp)
+                    modifier =
+                        Modifier.width(8.dp)
                 )
 
                 Icon(
+
                     imageVector =
-                        if (expandido)
+
+                        if (
+                            expandido
+                        ) {
                             Icons.Default.KeyboardArrowUp
-                        else
-                            Icons.Default.KeyboardArrowDown,
-                    contentDescription = "Expandir"
+                        } else {
+                            Icons.Default.KeyboardArrowDown
+                        },
+
+                    contentDescription =
+                        "Expandir"
                 )
             }
 
             AnimatedVisibility(
-                visible = expandido
+
+                visible =
+                    expandido
             ) {
 
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
+
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                top = 12.dp
+                            ),
+
                     verticalArrangement =
-                        Arrangement.spacedBy(8.dp)
+                        Arrangement.spacedBy(
+                            8.dp
+                        )
                 ) {
 
                     HorizontalDivider(
+
                         modifier =
                             Modifier.padding(
                                 vertical = 4.dp
@@ -557,12 +1110,20 @@ fun TarjetaProductoExpandible(
                     )
 
                     Text(
+
                         text =
                             "Detalle de Lotes:",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
+
+                        fontSize =
+                            12.sp,
+
+                        fontWeight =
+                            FontWeight.Bold,
+
                         color =
-                            MaterialTheme.colorScheme.primary
+                            MaterialTheme
+                                .colorScheme
+                                .primary
                     )
 
                     producto.lotes.forEach { lote ->
@@ -577,15 +1138,23 @@ fun TarjetaProductoExpandible(
     }
 }
 
+
 /*
- * Detalle de cada lote.
+ * ------------------------------------------------
+ * DETALLE DE LOTE
+ * ------------------------------------------------
  */
+
 @Composable
 fun FilaDetalleLote(
+
     lote: LoteItem
+
 ) {
 
-    val colorEstado = when (lote.estado) {
+    val colorEstado = when (
+        lote.estado
+    ) {
 
         EstadoSemaforo.CRITICO ->
             Color(0xFFE53935)
@@ -598,62 +1167,100 @@ fun FilaDetalleLote(
     }
 
     Row(
+
         modifier = Modifier
             .fillMaxWidth()
             .background(
                 Color(0xFFF5F5F5),
-                shape = RoundedCornerShape(8.dp)
+                shape =
+                    RoundedCornerShape(8.dp)
             )
             .padding(10.dp),
+
         verticalAlignment =
             Alignment.CenterVertically
     ) {
 
         Box(
+
             modifier = Modifier
                 .size(12.dp)
                 .background(
-                    color = colorEstado,
-                    shape = RoundedCornerShape(6.dp)
+                    color =
+                        colorEstado,
+
+                    shape =
+                        RoundedCornerShape(
+                            6.dp
+                        )
                 )
         )
 
         Spacer(
-            modifier = Modifier.width(10.dp)
+            modifier =
+                Modifier.width(10.dp)
         )
 
         Column(
-            modifier = Modifier.weight(1f)
+
+            modifier =
+                Modifier.weight(1f)
         ) {
 
             Text(
-                text = "Lote: ${lote.idLote}",
-                fontWeight = FontWeight.Medium,
-                fontSize = 13.sp
+
+                text =
+                    "Lote: ${lote.idLote}",
+
+                fontWeight =
+                    FontWeight.Medium,
+
+                fontSize =
+                    13.sp
             )
 
             Text(
-                text = "Vence: ${lote.fechaVencimiento}",
-                fontSize = 12.sp,
-                color = Color.DarkGray
+
+                text =
+                    "Vence: " +
+                            lote.fechaVencimiento,
+
+                fontSize =
+                    12.sp,
+
+                color =
+                    Color.DarkGray
             )
         }
 
         Column(
+
             horizontalAlignment =
                 Alignment.End
         ) {
 
             Text(
-                text = "${lote.cantidadActual} u.",
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
+
+                text =
+                    "${lote.cantidadActual} u.",
+
+                fontWeight =
+                    FontWeight.Bold,
+
+                fontSize =
+                    14.sp
             )
 
             Text(
-                text = "${lote.diasParaVencer} días",
-                fontSize = 11.sp,
-                color = colorEstado
+
+                text =
+                    "${lote.diasParaVencer} días",
+
+                fontSize =
+                    11.sp,
+
+                color =
+                    colorEstado
             )
         }
     }
