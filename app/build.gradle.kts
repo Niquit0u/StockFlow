@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -60,4 +61,10 @@ dependencies {
 
     // Escáner de Códigos de Barras (Google ML Kit)
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
+
+    //ROOM / SQLITE
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+
+    ksp(libs.androidx.room.compiler)
 }
