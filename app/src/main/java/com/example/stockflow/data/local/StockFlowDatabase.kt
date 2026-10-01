@@ -12,24 +12,23 @@ import androidx.room.RoomDatabase
         VentaEntity::class,
         DetalleVentaEntity::class,
         MovimientoEntity::class,
-        DispositivoEntity::class
+        DispositivoEntity::class,
+        UsuarioEntity::class // Nueva tabla de usuarios agregada
     ],
-    version = 1,
+    version = 2, // Versión incrementada por el cambio en la estructura
     exportSchema = false
 )
 abstract class StockFlowDatabase : RoomDatabase() {
 
     abstract fun productoDao(): ProductoDao
-
     abstract fun loteDao(): LoteDao
-
     abstract fun ventaDao(): VentaDao
-
     abstract fun detalleVentaDao(): DetalleVentaDao
-
     abstract fun movimientoDao(): MovimientoDao
-
     abstract fun dispositivoDao(): DispositivoDao
+
+    // Nuevo DAO para acceder a los datos del usuario
+    abstract fun usuarioDao(): UsuarioDao
 
     companion object {
 
@@ -43,7 +42,10 @@ abstract class StockFlowDatabase : RoomDatabase() {
                     context.applicationContext,
                     StockFlowDatabase::class.java,
                     "stockflow_database"
-                ).build()
+                )
+                    // Recrea la base de datos si hay cambios de versión sin una migración definida
+                    .fallbackToDestructiveMigration()
+                    .build()
 
                 INSTANCE = instance
 
