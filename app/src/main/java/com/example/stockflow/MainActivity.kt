@@ -22,7 +22,9 @@ import androidx.annotation.OptIn
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.unit.dp
+import com.example.app.ui.login.PantallaLogin
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,11 +32,30 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MaterialTheme {
-                AplicacionInteractivaStockFlow()
+                // Estado que controla si el usuario ha iniciado sesión
+                var isLoggedIn by rememberSaveable { mutableStateOf(false) }
+
+                if (isLoggedIn) {
+                    // Muestra el sistema principal de StockFlow
+                    AplicacionInteractivaStockFlow()
+                } else {
+                    // Muestra la pantalla de Login al iniciar la app
+                    PantallaLogin(
+                        onLoginClick = { usuario, password ->
+                            // Aquí puedes agregar tu lógica real de autenticación.
+                            // Por ahora simulamos que el ingreso es exitoso:
+                            isLoggedIn = true
+                        },
+                        onForgotPasswordClick = {
+                            // Acción para recuperar contraseña
+                        }
+                    )
+                }
             }
         }
     }
 }
+
 
 @OptIn(ExperimentalGetImage::class, ExperimentalMaterial3Api::class, ExperimentalMaterial3Api::class)
 @Composable
