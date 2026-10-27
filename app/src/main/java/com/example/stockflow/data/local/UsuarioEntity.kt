@@ -1,4 +1,5 @@
 package com.example.stockflow.data.local
+
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -6,5 +7,6 @@ import androidx.room.PrimaryKey
 data class UsuarioEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val nombreUsuario: String,
-    val contrasena: String
+    val contrasena: String,
+    val rol: String // Nuevo campo para los permisos
 )
