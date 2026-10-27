@@ -145,15 +145,6 @@ fun PantallaLogin(
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Olvidé mi contraseña
-            TextButton(
-                onClick = onForgotPasswordClick,
-                modifier = Modifier.align(Alignment.End)
-            ) {
-                Text(text = "¿Olvidaste tu contraseña?")
-            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
