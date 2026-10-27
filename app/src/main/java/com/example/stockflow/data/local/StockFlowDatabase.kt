@@ -13,11 +13,12 @@ import androidx.room.RoomDatabase
         DetalleVentaEntity::class,
         MovimientoEntity::class,
         DispositivoEntity::class,
-        UsuarioEntity::class // Nueva tabla de usuarios agregada
+        UsuarioEntity::class
     ],
-    version = 2, // Versión incrementada por el cambio en la estructura
+    version = 3, // Incrementa a versión 3
     exportSchema = false
 )
+// ... resto de la clase igual
 abstract class StockFlowDatabase : RoomDatabase() {
 
     abstract fun productoDao(): ProductoDao
