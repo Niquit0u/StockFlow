@@ -1,9 +1,16 @@
-package com.example.stockflow.data.local
+package com.example.stockflow.data.local.entity
 
 import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.example.stockflow.data.local.dao.DetalleVentaDao
+import com.example.stockflow.data.local.dao.DispositivoDao
+import com.example.stockflow.data.local.dao.LoteDao
+import com.example.stockflow.data.local.dao.MovimientoDao
+import com.example.stockflow.data.local.dao.ProductoDao
+import com.example.stockflow.data.local.dao.UsuarioDao
+import com.example.stockflow.data.local.dao.VentaDao
 
 @Database(
     entities = [

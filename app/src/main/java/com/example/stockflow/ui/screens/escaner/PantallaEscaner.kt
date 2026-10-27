@@ -135,6 +135,7 @@ fun PantallaEscaner(onCodigoEscaneado: (String) -> Unit) {
                                                     }
                                                 }
                                             }
+
                                             .addOnCompleteListener {
                                                 imageProxy.close()
                                             }

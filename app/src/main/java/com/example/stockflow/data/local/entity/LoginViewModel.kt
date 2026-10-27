@@ -1,7 +1,8 @@
-package com.example.stockflow.data.local
+package com.example.stockflow.data.local.entity
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.stockflow.data.local.dao.UsuarioDao
 import kotlinx.coroutines.launch
 
 class LoginViewModel(private val usuarioDao: UsuarioDao) : ViewModel() {

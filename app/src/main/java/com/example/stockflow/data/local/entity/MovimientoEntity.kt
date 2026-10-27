@@ -1,4 +1,4 @@
-package com.example.stockflow.data.local
+package com.example.stockflow.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
