@@ -1,4 +1,4 @@
-package com.example.stockflow.data.local.entity
+package com.example.stockflow.data.local
 
 import android.content.Context
 import androidx.room.Database
@@ -11,6 +11,13 @@ import com.example.stockflow.data.local.dao.MovimientoDao
 import com.example.stockflow.data.local.dao.ProductoDao
 import com.example.stockflow.data.local.dao.UsuarioDao
 import com.example.stockflow.data.local.dao.VentaDao
+import com.example.stockflow.data.local.entity.DetalleVentaEntity
+import com.example.stockflow.data.local.entity.DispositivoEntity
+import com.example.stockflow.data.local.entity.LoteEntity
+import com.example.stockflow.data.local.entity.MovimientoEntity
+import com.example.stockflow.data.local.entity.ProductoEntity
+import com.example.stockflow.data.local.entity.UsuarioEntity
+import com.example.stockflow.data.local.entity.VentaEntity
 
 @Database(
     entities = [
@@ -22,10 +29,9 @@ import com.example.stockflow.data.local.dao.VentaDao
         DispositivoEntity::class,
         UsuarioEntity::class
     ],
-    version = 3, // Incrementa a versión 3
-    exportSchema = false
+    version = 4,
+    exportSchema = true
 )
-// ... resto de la clase igual
 abstract class StockFlowDatabase : RoomDatabase() {
 
     abstract fun productoDao(): ProductoDao
@@ -34,8 +40,6 @@ abstract class StockFlowDatabase : RoomDatabase() {
     abstract fun detalleVentaDao(): DetalleVentaDao
     abstract fun movimientoDao(): MovimientoDao
     abstract fun dispositivoDao(): DispositivoDao
-
-    // Nuevo DAO para acceder a los datos del usuario
     abstract fun usuarioDao(): UsuarioDao
 
     companion object {
@@ -45,19 +49,16 @@ abstract class StockFlowDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): StockFlowDatabase {
             return INSTANCE ?: synchronized(this) {
-
-                val instance = Room.databaseBuilder(
+                INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     StockFlowDatabase::class.java,
                     "stockflow_database"
                 )
-                    // Recrea la base de datos si hay cambios de versión sin una migración definida
-                    .fallbackToDestructiveMigration()
+                    // Solo para desarrollo: si cambia la versión sin una Migration, se borra y recrea todo.
+                    // Antes de publicar la app hay que reemplazar esto por migraciones reales.
+                    .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
-
-                INSTANCE = instance
-
-                instance
+                    .also { INSTANCE = it }
             }
         }
     }

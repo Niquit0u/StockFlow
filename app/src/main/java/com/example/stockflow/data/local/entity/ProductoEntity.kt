@@ -1,18 +1,28 @@
 package com.example.stockflow.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "productos")
+@Entity(
+    tableName = "productos",
+    indices = [
+        // Un código de barras identifica a un solo producto.
+        // Es nullable: SQLite permite varios NULL en un índice único (productos sin código).
+        Index(value = ["codigoBarra"], unique = true)
+    ]
+)
 data class ProductoEntity(
     @PrimaryKey(autoGenerate = true)
     val idProducto: Int = 0,
 
     val nombre: String,
 
-    val codigoBarra: String,
+    val codigoBarra: String?,
 
-    val precioVenta: Double,
+    val categoria: String,
 
-    val stockMinimo: Int
+    val precioVenta: Double = 0.0,
+
+    val stockMinimo: Int = 0
 )

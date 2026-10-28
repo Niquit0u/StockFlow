@@ -25,5 +25,14 @@ data class MovimientoEntity(
 
     val tipo: String,
 
-    val idLote: Int
-)
+    val idLote: Int,
+
+    val cantidad: Int,
+
+    val fechaHora: Long = System.currentTimeMillis()
+) {
+    companion object {
+        const val TIPO_ENTRADA = "ENTRADA"
+        const val TIPO_SALIDA = "SALIDA"
+    }
+}

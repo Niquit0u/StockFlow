@@ -1,7 +1,14 @@
 package com.example.stockflow.data.repository
 
+import com.example.stockflow.data.local.dao.ProductoDao
+import com.example.stockflow.data.local.entity.ProductoEntity
+import kotlinx.coroutines.flow.Flow
 
 class ProductoRepository(private val productoDao: ProductoDao) {
+
+    fun observarTodos(): Flow<List<ProductoEntity>> {
+        return productoDao.observarTodos()
+    }
 
     suspend fun insertarProducto(producto: ProductoEntity): Long {
         return productoDao.insertar(producto)
