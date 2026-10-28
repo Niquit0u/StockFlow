@@ -25,7 +25,9 @@ import androidx.annotation.OptIn
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.unit.dp
+import com.example.stockflow.ui.screens.login.PantallaLogin
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -34,11 +36,28 @@ class MainActivity : ComponentActivity() {
         val inventario = InventarioRepository(StockFlowDatabase.getDatabase(this))
         setContent {
             MaterialTheme {
-                AplicacionInteractivaStockFlow(inventario)
+                // Estado que controla si el usuario ha iniciado sesión
+                var isLoggedIn by rememberSaveable { mutableStateOf(false) }
+
+                if (isLoggedIn) {
+                    // Muestra el sistema principal de StockFlow
+                    AplicacionInteractivaStockFlow()
+                } else {
+                    // Muestra la pantalla de Login al iniciar la app
+                    PantallaLogin(
+                        onIniciarSesion = { usuario, contrasena ->
+                            // TODO: validar contra la tabla de usuarios cuando se conecte la base de datos.
+                            // Por ahora cualquier usuario y contraseña no vacíos ingresan.
+                            isLoggedIn = true
+                            true
+                        }
+                    )
+                }
             }
         }
     }
 }
+
 
 @OptIn(ExperimentalGetImage::class, ExperimentalMaterial3Api::class, ExperimentalMaterial3Api::class)
 @Composable
