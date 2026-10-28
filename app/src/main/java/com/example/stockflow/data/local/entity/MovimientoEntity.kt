@@ -1,4 +1,4 @@
-package com.example.stockflow.data.local
+package com.example.stockflow.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
@@ -25,5 +25,14 @@ data class MovimientoEntity(
 
     val tipo: String,
 
-    val idLote: Int
-)
+    val idLote: Int,
+
+    val cantidad: Int,
+
+    val fechaHora: Long = System.currentTimeMillis()
+) {
+    companion object {
+        const val TIPO_ENTRADA = "ENTRADA"
+        const val TIPO_SALIDA = "SALIDA"
+    }
+}

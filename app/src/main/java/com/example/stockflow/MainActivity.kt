@@ -16,7 +16,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.example.stockflow.data.local.StockFlowDatabase
+import com.example.stockflow.data.repository.InventarioRepository
 import com.example.stockflow.ui.screens.escaner.PantallaEscaner
+import kotlinx.coroutines.launch
 import androidx.camera.core.ExperimentalGetImage
 import androidx.annotation.OptIn
 import androidx.compose.foundation.layout.WindowInsets
@@ -28,9 +31,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val inventario = InventarioRepository(StockFlowDatabase.getDatabase(this))
         setContent {
             MaterialTheme {
-                AplicacionInteractivaStockFlow()
+                AplicacionInteractivaStockFlow(inventario)
             }
         }
     }
@@ -38,9 +42,12 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalGetImage::class, ExperimentalMaterial3Api::class, ExperimentalMaterial3Api::class)
 @Composable
-fun AplicacionInteractivaStockFlow() {
+fun AplicacionInteractivaStockFlow(inventario: InventarioRepository) {
     val context = LocalContext.current
-    val listaLotes = remember { mutableStateListOf(*datosSimuladosLotes.toTypedArray()) }
+    val scope = rememberCoroutineScope()
+    val listaLotes by remember(inventario) { inventario.observarLotes() }.collectAsState(initial = emptyList())
+
+    LaunchedEffect(inventario) { inventario.sembrarDatosDePruebaSiVacio() }
 
     // Estado de la pestaña activa (0: Vencimientos, 1: Escáner, 2: Agregar)
     var pestañaSeleccionada by remember { mutableIntStateOf(0) }
@@ -96,7 +103,13 @@ fun AplicacionInteractivaStockFlow() {
                 2 -> PantallaAgregar(
                     codigoInicial = codigoEscaneadoGlobal,
                     onAgregarLote = { nuevoLote ->
-                        listaLotes.add(0, nuevoLote)
+                        scope.launch {
+                            try {
+                                inventario.registrarLote(nuevoLote)
+                            } catch (e: IllegalArgumentException) {
+                                Toast.makeText(context, e.message, Toast.LENGTH_LONG).show()
+                            }
+                        }
                         // Limpiamos el código global tras guardar el lote
                         codigoEscaneadoGlobal = ""
                     }
