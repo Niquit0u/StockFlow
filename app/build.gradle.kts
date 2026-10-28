@@ -36,6 +36,11 @@ android {
     }
 }
 
+ksp {
+    // Room exporta el esquema de cada versión acá (sirve para escribir y testear migraciones)
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
