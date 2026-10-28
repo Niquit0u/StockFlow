@@ -24,7 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.unit.dp
-import com.example.app.ui.login.PantallaLogin
+import com.example.stockflow.ui.screens.login.PantallaLogin
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,13 +41,11 @@ class MainActivity : ComponentActivity() {
                 } else {
                     // Muestra la pantalla de Login al iniciar la app
                     PantallaLogin(
-                        onLoginClick = { usuario, password ->
-                            // Aquí puedes agregar tu lógica real de autenticación.
-                            // Por ahora simulamos que el ingreso es exitoso:
+                        onIniciarSesion = { usuario, contrasena ->
+                            // TODO: validar contra la tabla de usuarios cuando se conecte la base de datos.
+                            // Por ahora cualquier usuario y contraseña no vacíos ingresan.
                             isLoggedIn = true
-                        },
-                        onForgotPasswordClick = {
-                            // Acción para recuperar contraseña
+                            true
                         }
                     )
                 }

@@ -1,4 +1,4 @@
-package com.example.app.ui.login
+package com.example.stockflow.ui.screens.login
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -6,10 +6,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
@@ -23,32 +28,65 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
+/**
+ * Pantalla de inicio de sesión.
+ *
+ * @param onIniciarSesion valida usuario y contraseña; devuelve true si son correctos.
+ * Es `suspend` para que más adelante pueda consultar la base de datos sin bloquear la pantalla.
+ */
 @Composable
 fun PantallaLogin(
-    onLoginClick: (String, String) -> Unit = { _, _ -> },
-    onForgotPasswordClick: () -> Unit = {}
+    onIniciarSesion: suspend (usuario: String, contrasena: String) -> Boolean
 ) {
-    var usuario by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var isPasswordVisible by remember { mutableStateOf(false) }
-    var isLoading by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var usuario by rememberSaveable { mutableStateOf("") }
+    var contrasena by remember { mutableStateOf("") }
+    var contrasenaVisible by remember { mutableStateOf(false) }
+    var cargando by remember { mutableStateOf(false) }
+    var mensajeError by remember { mutableStateOf<String?>(null) }
+
+    val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
+
+    fun intentarIngreso() {
+        if (cargando) return
+        if (usuario.isBlank() || contrasena.isBlank()) {
+            mensajeError = "Por favor completa todos los campos"
+            return
+        }
+        focusManager.clearFocus()
+        cargando = true
+        scope.launch {
+            try {
+                if (!onIniciarSesion(usuario.trim(), contrasena)) {
+                    mensajeError = "Usuario o contraseña incorrectos"
+                    contrasena = ""
+                }
+            } finally {
+                // Siempre se libera el botón, aunque la validación falle o lance una excepción
+                cargando = false
+            }
+        }
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -57,6 +95,9 @@ fun PantallaLogin(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .safeDrawingPadding() // Respeta barras del sistema (la app usa edge-to-edge)
+                .imePadding() // Sube el contenido cuando aparece el teclado
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
@@ -84,16 +125,17 @@ fun PantallaLogin(
                 value = usuario,
                 onValueChange = {
                     usuario = it
-                    errorMessage = null
+                    mensajeError = null
                 },
                 label = { Text("Usuario o Correo") },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Person,
-                        contentDescription = "Icono usuario"
+                        contentDescription = null
                     )
                 },
                 singleLine = true,
+                enabled = !cargando,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 keyboardOptions = KeyboardOptions(
@@ -106,36 +148,42 @@ fun PantallaLogin(
 
             // Campo Contraseña
             OutlinedTextField(
-                value = password,
+                value = contrasena,
                 onValueChange = {
-                    password = it
-                    errorMessage = null
+                    contrasena = it
+                    mensajeError = null
                 },
                 label = { Text("Contraseña") },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Lock,
-                        contentDescription = "Icono contraseña"
+                        contentDescription = null
                     )
                 },
                 trailingIcon = {
-                    val image = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
-                    IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
-                        Icon(imageVector = image, contentDescription = "Mostrar contraseña")
+                    IconButton(onClick = { contrasenaVisible = !contrasenaVisible }) {
+                        Icon(
+                            imageVector = if (contrasenaVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = if (contrasenaVisible) "Ocultar contraseña" else "Mostrar contraseña"
+                        )
                     }
                 },
                 singleLine = true,
-                visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                enabled = !cargando,
+                isError = mensajeError != null,
+                visualTransformation = if (contrasenaVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Password,
                     imeAction = ImeAction.Done
-                )
+                ),
+                // "Listo" en el teclado inicia sesión directamente
+                keyboardActions = KeyboardActions(onDone = { intentarIngreso() })
             )
 
             // Mensaje de error si la validación falla
-            errorMessage?.let { error ->
+            mensajeError?.let { error ->
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = error,
@@ -145,26 +193,18 @@ fun PantallaLogin(
                 )
             }
 
-
             Spacer(modifier = Modifier.height(24.dp))
 
             // Botón de Iniciar Sesión
             Button(
-                onClick = {
-                    if (usuario.isBlank() || password.isBlank()) {
-                        errorMessage = "Por favor completa todos los campos"
-                    } else {
-                        isLoading = true
-                        onLoginClick(usuario, password)
-                    }
-                },
+                onClick = ::intentarIngreso,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
                 shape = RoundedCornerShape(12.dp),
-                enabled = !isLoading
+                enabled = !cargando
             ) {
-                if (isLoading) {
+                if (cargando) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(24.dp),
                         color = MaterialTheme.colorScheme.onPrimary,
@@ -179,5 +219,13 @@ fun PantallaLogin(
                 }
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun PantallaLoginPreview() {
+    MaterialTheme {
+        PantallaLogin(onIniciarSesion = { _, _ -> true })
     }
 }
