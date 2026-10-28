@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
 
                 if (isLoggedIn) {
                     // Muestra el sistema principal de StockFlow
-                    AplicacionInteractivaStockFlow()
+                    AplicacionInteractivaStockFlow(inventario)
                 } else {
                     // Muestra la pantalla de Login al iniciar la app
                     PantallaLogin(
@@ -71,8 +71,26 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository) {
     // Estado de la pestaña activa (0: Vencimientos, 1: Escáner, 2: Agregar)
     var pestañaSeleccionada by remember { mutableIntStateOf(0) }
 
-    // Variable para almacenar el código escaneado y transferirlo a la pantalla de Agregar
-    var codigoEscaneadoGlobal by remember { mutableStateOf("") }
+    // Texto que el escáner manda a buscar en la pantalla de Vencimientos (opción "Buscar")
+    var busquedaInventario by remember { mutableStateOf("") }
+
+    // Agrupa los lotes con ese código en un Producto con su stock total, o null si no existe
+    fun buscarProductoPorCodigo(codigo: String): Producto? {
+        val lotes = listaLotes.filter { it.codigoBarra == codigo }
+        val primero = lotes.firstOrNull() ?: return null
+        return Producto(
+            nombreProducto = primero.nombreProducto,
+            categoria = primero.categoria,
+            codigoBarra = codigo,
+            totalCantidad = lotes.sumOf { it.cantidadActual },
+            lotes = lotes
+        )
+    }
+
+    fun cambiarPestaña(pestaña: Int) {
+        busquedaInventario = ""
+        pestañaSeleccionada = pestaña
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -85,19 +103,19 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository) {
             ) {
                 NavigationBarItem(
                     selected = pestañaSeleccionada == 0,
-                    onClick = { pestañaSeleccionada = 0 },
+                    onClick = { cambiarPestaña(0) },
                     icon = { Icon(Icons.Default.Info, contentDescription = "Alertas") },
                     label = { Text("Vencimientos") }
                 )
                 NavigationBarItem(
                     selected = pestañaSeleccionada == 1,
-                    onClick = { pestañaSeleccionada = 1 },
+                    onClick = { cambiarPestaña(1) },
                     icon = { Icon(Icons.Default.Search, contentDescription = "Escáner") },
                     label = { Text("Escáner") }
                 )
                 NavigationBarItem(
                     selected = pestañaSeleccionada == 2,
-                    onClick = { pestañaSeleccionada = 2 },
+                    onClick = { cambiarPestaña(2) },
                     icon = { Icon(Icons.Default.Add, contentDescription = "Agregar") },
                     label = { Text("Ingresar Stock") }
                 )
@@ -106,21 +124,35 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository) {
     ) { padding ->
         Surface(modifier = Modifier.padding(padding)) {
             when (pestañaSeleccionada) {
-                0 -> PantallaAlertas(lotes = listaLotes)
+                0 -> PantallaAlertas(lotes = listaLotes, busquedaInicial = busquedaInventario)
 
-                1 -> PantallaEscaner(onCodigoEscaneado = { codigo ->
-                    // 1. Guardamos el código capturado por la cámara
-                    codigoEscaneadoGlobal = codigo
-
-                    // 2. Notificamos al usuario
-                    Toast.makeText(context, "¡Código $codigo capturado!", Toast.LENGTH_SHORT).show()
-
-                    // 3. Redirigimos automáticamente a la pestaña 2 ("Ingresar Stock")
-                    pestañaSeleccionada = 2
-                })
+                1 -> PantallaEscaner(
+                    buscarProducto = ::buscarProductoPorCodigo,
+                    onBuscarEnInventario = { producto ->
+                        // Abre Vencimientos con la búsqueda del producto ya cargada
+                        busquedaInventario = producto.nombreProducto
+                        pestañaSeleccionada = 0
+                    },
+                    onDescontar = { items ->
+                        scope.launch {
+                            try {
+                                inventario.descontarStock(items)
+                                Toast.makeText(
+                                    context,
+                                    "Stock descontado: ${items.sumOf { it.cantidad }} unidades",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } catch (e: IllegalStateException) {
+                                Toast.makeText(context, "No se descontó nada: ${e.message}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                )
 
                 2 -> PantallaAgregar(
-                    codigoInicial = codigoEscaneadoGlobal,
+                    buscarProductoPorCodigo = { codigo ->
+                        listaLotes.firstOrNull { it.codigoBarra == codigo }
+                    },
                     onAgregarLote = { nuevoLote ->
                         scope.launch {
                             try {
@@ -129,8 +161,6 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository) {
                                 Toast.makeText(context, e.message, Toast.LENGTH_LONG).show()
                             }
                         }
-                        // Limpiamos el código global tras guardar el lote
-                        codigoEscaneadoGlobal = ""
                     }
                 )
             }

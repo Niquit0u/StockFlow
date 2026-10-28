@@ -27,18 +27,21 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PantallaAlertas(lotes: List<LoteItem>) {
+fun PantallaAlertas(
+    lotes: List<LoteItem>,
+    busquedaInicial: String = "" // Texto a buscar al llegar desde el escáner
+) {
 
     var categoriaSeleccionada by remember {
         mutableStateOf<String?>(null)
     }
 
     var textoBusqueda by remember {
-        mutableStateOf("")
+        mutableStateOf(busquedaInicial)
     }
 
     var mostrarBusqueda by remember {
-        mutableStateOf(false)
+        mutableStateOf(busquedaInicial.isNotBlank())
     }
 
     var ordenSeleccionado by remember {

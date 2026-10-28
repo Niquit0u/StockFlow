@@ -14,7 +14,8 @@ data class LoteItem(
     val cantidadActual: Int,
     val fechaVencimiento: String,
     val diasParaVencer: Int,
-    val estado: EstadoSemaforo
+    val estado: EstadoSemaforo,
+    val precio: Double? = null // Precio de venta del producto (null en los datos de ejemplo)
 )
 
 data class Producto(
@@ -23,6 +24,13 @@ data class Producto(
     val codigoBarra: String,
     val totalCantidad: Int,
     val lotes: List<LoteItem>
+)
+
+// Producto escaneado que se va a descontar del stock
+data class ItemDescuento(
+    val codigoBarra: String,
+    val nombreProducto: String,
+    val cantidad: Int
 )
 
 // Lista de categorías disponibles en la tienda

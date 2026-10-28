@@ -2,6 +2,7 @@ package com.example.stockflow.data.repository
 
 import androidx.room.withTransaction
 import com.example.stockflow.EstadoSemaforo
+import com.example.stockflow.ItemDescuento
 import com.example.stockflow.LoteItem
 import com.example.stockflow.data.local.StockFlowDatabase
 import com.example.stockflow.data.local.entity.LoteConProducto
@@ -47,8 +48,45 @@ class InventarioRepository(private val database: StockFlowDatabase) {
             codigoBarra = normalizarCodigo(lote.codigoBarra),
             categoria = lote.categoria,
             cantidad = lote.cantidadActual,
-            vencimiento = vencimiento
+            vencimiento = vencimiento,
+            precio = lote.precio
         )
+    }
+
+    /**
+     * Descuenta del stock todos los productos escaneados, en una sola transacción:
+     * si algo falla no se descuenta nada.
+     * Usa FEFO (primero los lotes que vencen antes) y registra un movimiento de SALIDA por cada lote tocado.
+     * Los lotes que quedan en 0 no se borran (sus movimientos los referencian); dejan de mostrarse.
+     *
+     * @throws IllegalStateException si un producto no existe o no tiene stock suficiente.
+     */
+    suspend fun descontarStock(items: List<ItemDescuento>) {
+        database.withTransaction {
+            items.forEach { item ->
+                val producto = productoDao.obtenerPorCodigoBarra(item.codigoBarra)
+                    ?: throw IllegalStateException("${item.nombreProducto} ya no existe")
+                val lotes = loteDao.obtenerPorProducto(producto.idProducto).filter { it.cantidadActual > 0 }
+                check(lotes.sumOf { it.cantidadActual } >= item.cantidad) {
+                    "No hay stock suficiente de ${item.nombreProducto}"
+                }
+
+                var restante = item.cantidad
+                for (lote in lotes) {
+                    if (restante == 0) break
+                    val aDescontar = minOf(restante, lote.cantidadActual)
+                    loteDao.actualizar(lote.copy(cantidadActual = lote.cantidadActual - aDescontar))
+                    movimientoDao.insertar(
+                        MovimientoEntity(
+                            tipo = MovimientoEntity.TIPO_SALIDA,
+                            idLote = lote.idLote,
+                            cantidad = aDescontar
+                        )
+                    )
+                    restante -= aDescontar
+                }
+            }
+        }
     }
 
     /** Carga los datos de ejemplo la primera vez que se abre la app, para que las pantallas no arranquen vacías. */
@@ -74,7 +112,8 @@ class InventarioRepository(private val database: StockFlowDatabase) {
         codigoBarra: String?,
         categoria: String,
         cantidad: Int,
-        vencimiento: Long
+        vencimiento: Long,
+        precio: Double? = null
     ): Long = database.withTransaction {
         val existente = if (codigoBarra != null) {
             productoDao.obtenerPorCodigoBarra(codigoBarra)
@@ -82,7 +121,12 @@ class InventarioRepository(private val database: StockFlowDatabase) {
             productoDao.obtenerSinCodigoPorNombre(nombre)
         }
         val idProducto = existente?.idProducto ?: productoDao.insertar(
-            ProductoEntity(nombre = nombre, codigoBarra = codigoBarra, categoria = categoria)
+            ProductoEntity(
+                nombre = nombre,
+                codigoBarra = codigoBarra,
+                categoria = categoria,
+                precioVenta = precio ?: 0.0
+            )
         ).toInt()
 
         val idLote = loteDao.insertar(
