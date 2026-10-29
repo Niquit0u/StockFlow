@@ -8,5 +8,8 @@ data class DispositivoEntity(
     @PrimaryKey
     val deviceId: String,
 
-    val tokenPush: String
+    // Token de notificaciones push; null hasta que la app use Firebase Cloud Messaging
+    val tokenPush: String? = null,
+
+    val fechaRegistro: Long = System.currentTimeMillis()
 )

@@ -10,7 +10,8 @@ import com.example.stockflow.data.local.entity.LoteConProducto
 import com.example.stockflow.data.local.entity.LoteEntity
 import com.example.stockflow.data.local.entity.MovimientoEntity
 import com.example.stockflow.data.local.entity.ProductoEntity
-import com.example.stockflow.datosSimuladosLotes
+import com.example.stockflow.data.local.entity.DetalleVentaEntity
+import com.example.stockflow.data.local.entity.VentaEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.text.ParseException
@@ -28,6 +29,8 @@ class InventarioRepository(private val database: StockFlowDatabase) {
     private val productoDao = database.productoDao()
     private val loteDao = database.loteDao()
     private val movimientoDao = database.movimientoDao()
+    private val ventaDao = database.ventaDao()
+    private val detalleVentaDao = database.detalleVentaDao()
 
     fun observarLotes(): Flow<List<LoteItem>> {
         return loteDao.observarConProducto().map { lotes -> lotes.map { it.aLoteItem() } }
@@ -55,39 +58,57 @@ class InventarioRepository(private val database: StockFlowDatabase) {
     }
 
     /**
-     * Descuenta del stock todos los productos escaneados, en una sola transacción:
-     * si algo falla no se descuenta nada.
-     * Usa FEFO (primero los lotes que vencen antes) y registra un movimiento de SALIDA por cada lote tocado.
+     * Registra como venta todos los productos escaneados en "Descontar productos" y descuenta su stock,
+     * en una sola transacción: si algo falla no se guarda nada.
+     * - Crea la venta (fecha y monto total) y un detalle por producto con su subtotal.
+     * - Descuenta por FEFO (primero los lotes que vencen antes) y registra un movimiento de SALIDA por lote.
      * Los lotes que quedan en 0 no se borran (sus movimientos los referencian); dejan de mostrarse.
+     * Productos sin precio cargado suman $0 al total.
      *
+     * @return el id de la venta creada.
      * @throws IllegalStateException si un producto no existe o no tiene stock suficiente.
      */
-    suspend fun descontarStock(items: List<ItemDescuento>) {
-        database.withTransaction {
-            items.forEach { item ->
-                val producto = productoDao.obtenerPorCodigoBarra(item.codigoBarra)
-                    ?: throw IllegalStateException("${item.nombreProducto} ya no existe")
-                val lotes = loteDao.obtenerPorProducto(producto.idProducto).filter { it.cantidadActual > 0 }
-                check(lotes.sumOf { it.cantidadActual } >= item.cantidad) {
-                    "No hay stock suficiente de ${item.nombreProducto}"
-                }
+    suspend fun descontarStock(items: List<ItemDescuento>): Long = database.withTransaction {
+        val idVenta = ventaDao.insertar(
+            VentaEntity(
+                fechaHora = System.currentTimeMillis(),
+                montoTotal = items.sumOf { it.subtotal ?: 0.0 }
+            )
+        ).toInt()
 
-                var restante = item.cantidad
-                for (lote in lotes) {
-                    if (restante == 0) break
-                    val aDescontar = minOf(restante, lote.cantidadActual)
-                    loteDao.actualizar(lote.copy(cantidadActual = lote.cantidadActual - aDescontar))
-                    movimientoDao.insertar(
-                        MovimientoEntity(
-                            tipo = MovimientoEntity.TIPO_SALIDA,
-                            idLote = lote.idLote,
-                            cantidad = aDescontar
-                        )
+        items.forEach { item ->
+            val producto = productoDao.obtenerPorCodigoBarra(item.codigoBarra)
+                ?: throw IllegalStateException("${item.nombreProducto} ya no existe")
+            detalleVentaDao.insertar(
+                DetalleVentaEntity(
+                    idVenta = idVenta,
+                    idProducto = producto.idProducto,
+                    cantidad = item.cantidad,
+                    subtotal = item.subtotal ?: 0.0
+                )
+            )
+            val lotes = loteDao.obtenerPorProducto(producto.idProducto).filter { it.cantidadActual > 0 }
+            check(lotes.sumOf { it.cantidadActual } >= item.cantidad) {
+                "No hay stock suficiente de ${item.nombreProducto}"
+            }
+
+            var restante = item.cantidad
+            for (lote in lotes) {
+                if (restante == 0) break
+                val aDescontar = minOf(restante, lote.cantidadActual)
+                loteDao.actualizar(lote.copy(cantidadActual = lote.cantidadActual - aDescontar))
+                movimientoDao.insertar(
+                    MovimientoEntity(
+                        tipo = MovimientoEntity.TIPO_SALIDA,
+                        idLote = lote.idLote,
+                        cantidad = aDescontar
                     )
-                    restante -= aDescontar
-                }
+                )
+                restante -= aDescontar
             }
         }
+
+        idVenta.toLong()
     }
 
     /**
@@ -136,24 +157,6 @@ class InventarioRepository(private val database: StockFlowDatabase) {
                         idLote = cambios.idLote,
                         cantidad = kotlin.math.abs(diferencia)
                     )
-                )
-            }
-        }
-    }
-
-    /** Carga los datos de ejemplo la primera vez que se abre la app, para que las pantallas no arranquen vacías. */
-    suspend fun sembrarDatosDePruebaSiVacio() {
-        if (productoDao.contar() > 0) return
-        database.withTransaction {
-            datosSimuladosLotes.distinct().forEach { lote ->
-                // Fechas relativas a hoy para que el semáforo se vea igual que en la maqueta
-                registrar(
-                    nombre = lote.nombreProducto,
-                    codigoBarra = normalizarCodigo(lote.codigoBarra),
-                    categoria = lote.categoria,
-                    cantidad = lote.cantidadActual,
-                    vencimiento = inicioDelDia(System.currentTimeMillis()) +
-                        TimeUnit.DAYS.toMillis(lote.diasParaVencer.toLong())
                 )
             }
         }

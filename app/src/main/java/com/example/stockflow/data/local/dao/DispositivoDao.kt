@@ -12,6 +12,10 @@ interface DispositivoDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun guardar(dispositivo: DispositivoEntity)
 
+    // IGNORE: si el teléfono ya estaba registrado no se pisa su token
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun registrarSiNoExiste(dispositivo: DispositivoEntity)
+
     @Query("SELECT * FROM dispositivos WHERE deviceId = :deviceId")
     suspend fun obtener(deviceId: String): DispositivoEntity?
 

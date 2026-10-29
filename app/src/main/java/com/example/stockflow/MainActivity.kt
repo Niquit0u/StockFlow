@@ -19,7 +19,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.example.stockflow.data.local.StockFlowDatabase
+import com.example.stockflow.data.repository.DispositivoRepository
 import com.example.stockflow.data.repository.InventarioRepository
+import com.example.stockflow.data.repository.UsuarioRepository
+import androidx.lifecycle.lifecycleScope
 import com.example.stockflow.ui.screens.escaner.PantallaEscaner
 import kotlinx.coroutines.launch
 import androidx.camera.core.ExperimentalGetImage
@@ -34,7 +37,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val inventario = InventarioRepository(StockFlowDatabase.getDatabase(this))
+        val database = StockFlowDatabase.getDatabase(this)
+        val inventario = InventarioRepository(database)
+        val usuarios = UsuarioRepository(database.usuarioDao())
+        val dispositivos = DispositivoRepository(database.dispositivoDao())
+
+        lifecycleScope.launch { dispositivos.registrarEsteDispositivo(applicationContext) }
+
         setContent {
             MaterialTheme {
                 // Estado que controla si el usuario ha iniciado sesión
@@ -44,13 +53,22 @@ class MainActivity : ComponentActivity() {
                     // Muestra el sistema principal de StockFlow
                     AplicacionInteractivaStockFlow(inventario)
                 } else {
-                    // Muestra la pantalla de Login al iniciar la app
                     PantallaLogin(
-                        onIniciarSesion = { usuario, contrasena ->
-                            // TODO: validar contra la tabla de usuarios cuando se conecte la base de datos.
-                            // Por ahora cualquier usuario y contraseña no vacíos ingresan.
-                            isLoggedIn = true
-                            true
+                        onIniciarSesion = { usuarioOEmail, contrasena ->
+                            val valido = usuarios.validar(usuarioOEmail, contrasena) != null
+                            if (valido) isLoggedIn = true
+                            valido
+                        },
+                        onCrearCuenta = { nombre, email, contrasena ->
+                            when (usuarios.registrar(nombre, email, contrasena)) {
+                                UsuarioRepository.ResultadoRegistro.CREADO -> {
+                                    // La cuenta nueva entra directamente
+                                    isLoggedIn = true
+                                    null
+                                }
+                                UsuarioRepository.ResultadoRegistro.NOMBRE_EN_USO -> "Ese nombre de usuario ya existe"
+                                UsuarioRepository.ResultadoRegistro.EMAIL_EN_USO -> "Ya hay una cuenta con ese email"
+                            }
                         }
                     )
                 }
@@ -66,8 +84,6 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val listaLotes by remember(inventario) { inventario.observarLotes() }.collectAsState(initial = emptyList())
-
-    LaunchedEffect(inventario) { inventario.sembrarDatosDePruebaSiVacio() }
 
     // Estado de la pestaña activa (0: Inventario, 1: Escáner, 2: Agregar)
     var pestañaSeleccionada by remember { mutableIntStateOf(0) }
@@ -155,10 +171,10 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository) {
                     onDescontar = { items ->
                         scope.launch {
                             try {
-                                inventario.descontarStock(items)
+                                val idVenta = inventario.descontarStock(items)
                                 Toast.makeText(
                                     context,
-                                    "Stock descontado: ${items.sumOf { it.cantidad }} unidades",
+                                    "Venta #$idVenta registrada: ${items.sumOf { it.cantidad }} unidades",
                                     Toast.LENGTH_SHORT
                                 ).show()
                             } catch (e: IllegalStateException) {

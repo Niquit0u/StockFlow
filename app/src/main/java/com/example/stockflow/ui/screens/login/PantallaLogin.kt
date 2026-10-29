@@ -1,5 +1,8 @@
 package com.example.stockflow.ui.screens.login
 
+import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.filled.Email
+import android.util.Patterns
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -43,23 +46,31 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
 /**
- * Pantalla de inicio de sesión.
+ * Pantalla de inicio de sesión, con la opción de crear una cuenta nueva.
  *
- * @param onIniciarSesion valida usuario y contraseña; devuelve true si son correctos.
- * Es `suspend` para que más adelante pueda consultar la base de datos sin bloquear la pantalla.
+ * @param onIniciarSesion valida usuario (o email) y contraseña; devuelve true si son correctos.
+ * @param onCrearCuenta crea la cuenta (nombre, email, contraseña); devuelve null si se creó,
+ * o el mensaje de error para mostrar (por ejemplo, email ya usado).
  */
 @Composable
 fun PantallaLogin(
-    onIniciarSesion: suspend (usuario: String, contrasena: String) -> Boolean
+    onIniciarSesion: suspend (usuarioOEmail: String, contrasena: String) -> Boolean,
+    onCrearCuenta: suspend (nombre: String, email: String, contrasena: String) -> String?
 ) {
+    // false = iniciar sesión, true = crear cuenta
+    var modoCrearCuenta by rememberSaveable { mutableStateOf(false) }
+
     var usuario by rememberSaveable { mutableStateOf("") }
+    var email by rememberSaveable { mutableStateOf("") }
     var contrasena by remember { mutableStateOf("") }
+    var repetirContrasena by remember { mutableStateOf("") }
     var contrasenaVisible by remember { mutableStateOf(false) }
     var cargando by remember { mutableStateOf(false) }
     var mensajeError by remember { mutableStateOf<String?>(null) }
@@ -67,17 +78,39 @@ fun PantallaLogin(
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
 
-    fun intentarIngreso() {
+    fun cambiarModo() {
+        modoCrearCuenta = !modoCrearCuenta
+        mensajeError = null
+        contrasena = ""
+        repetirContrasena = ""
+    }
+
+    // Devuelve el error a mostrar, o null si el formulario está completo y es válido
+    fun validarFormulario(): String? = when {
+        usuario.isBlank() || contrasena.isBlank() -> "Por favor completa todos los campos"
+        !modoCrearCuenta -> null
+        email.isBlank() || repetirContrasena.isBlank() -> "Por favor completa todos los campos"
+        !Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches() -> "Ingresá un email válido, por ejemplo nombre@mail.com"
+        contrasena.length < MINIMO_CONTRASENA -> "La contraseña debe tener al menos $MINIMO_CONTRASENA caracteres"
+        contrasena != repetirContrasena -> "Las contraseñas no coinciden"
+        else -> null
+    }
+
+    fun enviar() {
         if (cargando) return
-        if (usuario.isBlank() || contrasena.isBlank()) {
-            mensajeError = "Por favor completa todos los campos"
+        validarFormulario()?.let {
+            mensajeError = it
             return
         }
         focusManager.clearFocus()
         cargando = true
         scope.launch {
             try {
-                if (!onIniciarSesion(usuario.trim(), contrasena)) {
+                if (modoCrearCuenta) {
+                    onCrearCuenta(usuario.trim(), email.trim(), contrasena)?.let { error ->
+                        mensajeError = error
+                    }
+                } else if (!onIniciarSesion(usuario.trim(), contrasena)) {
                     mensajeError = "Usuario o contraseña incorrectos"
                     contrasena = ""
                 }
@@ -104,7 +137,7 @@ fun PantallaLogin(
         ) {
             // Título
             Text(
-                text = "Bienvenido",
+                text = if (modoCrearCuenta) "Crear cuenta" else "Bienvenido",
                 style = MaterialTheme.typography.headlineMedium.copy(
                     fontWeight = FontWeight.Bold,
                     fontSize = 30.sp
@@ -113,21 +146,22 @@ fun PantallaLogin(
             )
 
             Text(
-                text = "Inicia sesión para continuar",
+                text = if (modoCrearCuenta) "Completá tus datos para empezar" else "Inicia sesión para continuar",
+                textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Campo Usuario / Email
+            // Campo Usuario (al iniciar sesión también acepta el email)
             OutlinedTextField(
                 value = usuario,
                 onValueChange = {
                     usuario = it
                     mensajeError = null
                 },
-                label = { Text("Usuario o Correo") },
+                label = { Text(if (modoCrearCuenta) "Nombre de usuario" else "Usuario o Correo") },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Person,
@@ -139,48 +173,73 @@ fun PantallaLogin(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
+                    keyboardType = if (modoCrearCuenta) KeyboardType.Text else KeyboardType.Email,
                     imeAction = ImeAction.Next
                 )
             )
 
+            if (modoCrearCuenta) {
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = {
+                        email = it
+                        mensajeError = null
+                    },
+                    label = { Text("Correo electrónico") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Email,
+                            contentDescription = null
+                        )
+                    },
+                    singleLine = true,
+                    enabled = !cargando,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Next
+                    )
+                )
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Campo Contraseña
-            OutlinedTextField(
-                value = contrasena,
-                onValueChange = {
+            CampoContrasena(
+                valor = contrasena,
+                onValorChange = {
                     contrasena = it
                     mensajeError = null
                 },
-                label = { Text("Contraseña") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = null
-                    )
-                },
-                trailingIcon = {
-                    IconButton(onClick = { contrasenaVisible = !contrasenaVisible }) {
-                        Icon(
-                            imageVector = if (contrasenaVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                            contentDescription = if (contrasenaVisible) "Ocultar contraseña" else "Mostrar contraseña"
-                        )
-                    }
-                },
-                singleLine = true,
-                enabled = !cargando,
-                isError = mensajeError != null,
-                visualTransformation = if (contrasenaVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done
-                ),
-                // "Listo" en el teclado inicia sesión directamente
-                keyboardActions = KeyboardActions(onDone = { intentarIngreso() })
+                etiqueta = "Contraseña",
+                visible = contrasenaVisible,
+                onCambiarVisibilidad = { contrasenaVisible = !contrasenaVisible },
+                habilitado = !cargando,
+                esError = mensajeError != null,
+                esUltimoCampo = !modoCrearCuenta,
+                onListo = ::enviar
             )
+
+            if (modoCrearCuenta) {
+                Spacer(modifier = Modifier.height(16.dp))
+
+                CampoContrasena(
+                    valor = repetirContrasena,
+                    onValorChange = {
+                        repetirContrasena = it
+                        mensajeError = null
+                    },
+                    etiqueta = "Repetir contraseña",
+                    visible = contrasenaVisible,
+                    onCambiarVisibilidad = { contrasenaVisible = !contrasenaVisible },
+                    habilitado = !cargando,
+                    esError = mensajeError != null,
+                    esUltimoCampo = true,
+                    onListo = ::enviar
+                )
+            }
 
             // Mensaje de error si la validación falla
             mensajeError?.let { error ->
@@ -195,9 +254,8 @@ fun PantallaLogin(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Botón de Iniciar Sesión
             Button(
-                onClick = ::intentarIngreso,
+                onClick = ::enviar,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
@@ -212,20 +270,76 @@ fun PantallaLogin(
                     )
                 } else {
                     Text(
-                        text = "Iniciar Sesión",
+                        text = if (modoCrearCuenta) "Crear cuenta" else "Iniciar Sesión",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            TextButton(onClick = ::cambiarModo, enabled = !cargando) {
+                Text(if (modoCrearCuenta) "Ya tengo cuenta. Iniciar sesión" else "¿No tenés cuenta? Crear cuenta")
+            }
         }
     }
 }
+
+@Composable
+private fun CampoContrasena(
+    valor: String,
+    onValorChange: (String) -> Unit,
+    etiqueta: String,
+    visible: Boolean,
+    onCambiarVisibilidad: () -> Unit,
+    habilitado: Boolean,
+    esError: Boolean,
+    esUltimoCampo: Boolean,
+    onListo: () -> Unit
+) {
+    OutlinedTextField(
+        value = valor,
+        onValueChange = onValorChange,
+        label = { Text(etiqueta) },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Default.Lock,
+                contentDescription = null
+            )
+        },
+        trailingIcon = {
+            IconButton(onClick = onCambiarVisibilidad) {
+                Icon(
+                    imageVector = if (visible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                    contentDescription = if (visible) "Ocultar contraseña" else "Mostrar contraseña"
+                )
+            }
+        },
+        singleLine = true,
+        enabled = habilitado,
+        isError = esError,
+        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Password,
+            imeAction = if (esUltimoCampo) ImeAction.Done else ImeAction.Next
+        ),
+        // "Listo" en el teclado envía el formulario
+        keyboardActions = KeyboardActions(onDone = { onListo() })
+    )
+}
+
+private const val MINIMO_CONTRASENA = 4
 
 @Preview(showBackground = true)
 @Composable
 private fun PantallaLoginPreview() {
     MaterialTheme {
-        PantallaLogin(onIniciarSesion = { _, _ -> true })
+        PantallaLogin(
+            onIniciarSesion = { _, _ -> true },
+            onCrearCuenta = { _, _, _ -> null }
+        )
     }
 }
