@@ -41,6 +41,16 @@ data class ItemDescuento(
     val subtotal: Double? get() = precioUnitario?.times(cantidad)
 }
 
+// Cambios hechos sobre un lote desde el lápiz de Inventario
+data class CambiosLote(
+    val idLote: Int,
+    val nombre: String,
+    val codigoBarra: String, // vacío = producto sin código
+    val cantidad: Int,
+    val precio: Double?, // null = sin precio
+    val fechaVencimiento: String // dd/MM/yyyy
+)
+
 /** Formatea un importe como "$1.234,50" según el idioma del teléfono. */
 fun formatearPrecio(valor: Double): String {
     val formato = NumberFormat.getNumberInstance(Locale.getDefault()).apply {
