@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.stockflow.ItemDescuento
 import com.example.stockflow.Producto
+import com.example.stockflow.formatearPrecio
 
 @ExperimentalMaterial3Api
 @Composable
@@ -172,7 +173,9 @@ fun PantallaEscaner(
                     val item = itemsADescontar[indice]
                     itemsADescontar[indice] = item.copy(cantidad = item.cantidad + cantidad)
                 } else {
-                    itemsADescontar.add(ItemDescuento(producto.codigoBarra, producto.nombreProducto, cantidad))
+                    itemsADescontar.add(
+                        ItemDescuento(producto.codigoBarra, producto.nombreProducto, cantidad, producto.precio)
+                    )
                 }
                 productoParaCantidad = null
             },
@@ -187,7 +190,9 @@ fun PantallaEscaner(
             text = {
                 Text(
                     "Se descontarán ${itemsADescontar.sumOf { it.cantidad }} unidades de " +
-                        "${itemsADescontar.size} producto(s). Esta acción no se puede deshacer."
+                        "${itemsADescontar.size} producto(s).\n" +
+                        "Valor total: ${formatearPrecio(itemsADescontar.sumOf { it.subtotal ?: 0.0 })}\n\n" +
+                        "Esta acción no se puede deshacer."
                 )
             },
             confirmButton = {
@@ -230,10 +235,39 @@ private fun ListaADescontar(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Text("x${item.cantidad}", fontWeight = FontWeight.Bold)
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("x${item.cantidad}", fontWeight = FontWeight.Bold)
+                        Text(
+                            item.subtotal?.let(::formatearPrecio) ?: "Sin precio",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     IconButton(onClick = { onQuitar(item) }) {
                         Icon(Icons.Default.Delete, contentDescription = "Quitar ${item.nombreProducto}")
                     }
+                }
+            }
+
+            if (items.isNotEmpty()) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Total", fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
+                    Text(
+                        formatearPrecio(items.sumOf { it.subtotal ?: 0.0 }),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                val sinPrecio = items.count { it.precioUnitario == null }
+                if (sinPrecio > 0) {
+                    Text(
+                        "$sinPrecio producto(s) sin precio cargado no suman al total",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             }
         }

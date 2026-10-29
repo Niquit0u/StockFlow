@@ -89,6 +89,50 @@ class InventarioRepository(private val database: StockFlowDatabase) {
         }
     }
 
+    /**
+     * Guarda los cambios hechos desde el lápiz de un lote en Inventario.
+     * Nombre y precio son del producto (afectan a todos sus lotes); cantidad y vencimiento son del lote.
+     * Si cambia la cantidad se registra un movimiento de ENTRADA o SALIDA por la diferencia.
+     *
+     * @throws IllegalArgumentException si los datos no son válidos.
+     */
+    suspend fun editarLote(
+        idLote: Int,
+        nombre: String,
+        cantidad: Int,
+        precio: Double?,
+        fechaVencimiento: String
+    ) {
+        val vencimiento = parsearFecha(fechaVencimiento)
+            ?: throw IllegalArgumentException("Fecha inválida: '$fechaVencimiento'. Usá DD/MM/AAAA")
+        require(nombre.isNotBlank()) { "El nombre no puede estar vacío" }
+        require(cantidad > 0) { "La cantidad debe ser mayor a 0" }
+        require(precio == null || precio >= 0) { "El precio no puede ser negativo" }
+
+        database.withTransaction {
+            val lote = loteDao.obtenerPorId(idLote)
+                ?: throw IllegalArgumentException("El lote ya no existe")
+            val producto = productoDao.obtenerPorId(lote.idProducto)
+                ?: throw IllegalArgumentException("El producto ya no existe")
+
+            productoDao.actualizar(
+                producto.copy(nombre = nombre.trim(), precioVenta = precio ?: 0.0)
+            )
+            loteDao.actualizar(lote.copy(cantidadActual = cantidad, fechaVencimiento = vencimiento))
+
+            val diferencia = cantidad - lote.cantidadActual
+            if (diferencia != 0) {
+                movimientoDao.insertar(
+                    MovimientoEntity(
+                        tipo = if (diferencia > 0) MovimientoEntity.TIPO_ENTRADA else MovimientoEntity.TIPO_SALIDA,
+                        idLote = idLote,
+                        cantidad = kotlin.math.abs(diferencia)
+                    )
+                )
+            }
+        }
+    }
+
     /** Carga los datos de ejemplo la primera vez que se abre la app, para que las pantallas no arranquen vacías. */
     suspend fun sembrarDatosDePruebaSiVacio() {
         if (productoDao.contar() > 0) return
@@ -148,7 +192,9 @@ class InventarioRepository(private val database: StockFlowDatabase) {
             cantidadActual = lote.cantidadActual,
             fechaVencimiento = formatoFecha().format(lote.fechaVencimiento),
             diasParaVencer = dias,
-            estado = estadoPara(dias)
+            estado = estadoPara(dias),
+            // 0 = producto cargado sin precio (por ejemplo, los datos de prueba)
+            precio = precioVenta.takeIf { it > 0 }
         )
     }
 

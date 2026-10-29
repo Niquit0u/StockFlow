@@ -68,10 +68,10 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository) {
 
     LaunchedEffect(inventario) { inventario.sembrarDatosDePruebaSiVacio() }
 
-    // Estado de la pestaña activa (0: Vencimientos, 1: Escáner, 2: Agregar)
+    // Estado de la pestaña activa (0: Inventario, 1: Escáner, 2: Agregar)
     var pestañaSeleccionada by remember { mutableIntStateOf(0) }
 
-    // Texto que el escáner manda a buscar en la pantalla de Vencimientos (opción "Buscar")
+    // Texto que el escáner manda a buscar en la pantalla de Inventario (opción "Buscar")
     var busquedaInventario by remember { mutableStateOf("") }
 
     // Agrupa los lotes con ese código en un Producto con su stock total, o null si no existe
@@ -83,7 +83,8 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository) {
             categoria = primero.categoria,
             codigoBarra = codigo,
             totalCantidad = lotes.sumOf { it.cantidadActual },
-            lotes = lotes
+            lotes = lotes,
+            precio = primero.precio
         )
     }
 
@@ -104,8 +105,8 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository) {
                 NavigationBarItem(
                     selected = pestañaSeleccionada == 0,
                     onClick = { cambiarPestaña(0) },
-                    icon = { Icon(Icons.Default.Info, contentDescription = "Alertas") },
-                    label = { Text("Vencimientos") }
+                    icon = { Icon(Icons.Default.Info, contentDescription = "Inventario") },
+                    label = { Text("Inventario") }
                 )
                 NavigationBarItem(
                     selected = pestañaSeleccionada == 1,
@@ -124,12 +125,25 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository) {
     ) { padding ->
         Surface(modifier = Modifier.padding(padding)) {
             when (pestañaSeleccionada) {
-                0 -> PantallaAlertas(lotes = listaLotes, busquedaInicial = busquedaInventario)
+                0 -> PantallaAlertas(
+                    lotes = listaLotes,
+                    busquedaInicial = busquedaInventario,
+                    onEditarLote = { idLote, nombre, cantidad, precio, fecha ->
+                        scope.launch {
+                            try {
+                                inventario.editarLote(idLote, nombre, cantidad, precio, fecha)
+                                Toast.makeText(context, "Lote actualizado", Toast.LENGTH_SHORT).show()
+                            } catch (e: IllegalArgumentException) {
+                                Toast.makeText(context, e.message, Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                )
 
                 1 -> PantallaEscaner(
                     buscarProducto = ::buscarProductoPorCodigo,
                     onBuscarEnInventario = { producto ->
-                        // Abre Vencimientos con la búsqueda del producto ya cargada
+                        // Abre Inventario con la búsqueda del producto ya cargada
                         busquedaInventario = producto.nombreProducto
                         pestañaSeleccionada = 0
                     },
