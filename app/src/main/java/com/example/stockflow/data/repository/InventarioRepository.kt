@@ -1,6 +1,7 @@
 package com.example.stockflow.data.repository
 
 import androidx.room.withTransaction
+import com.example.stockflow.CambiosLote
 import com.example.stockflow.EstadoSemaforo
 import com.example.stockflow.ItemDescuento
 import com.example.stockflow.LoteItem
@@ -91,41 +92,48 @@ class InventarioRepository(private val database: StockFlowDatabase) {
 
     /**
      * Guarda los cambios hechos desde el lápiz de un lote en Inventario.
-     * Nombre y precio son del producto (afectan a todos sus lotes); cantidad y vencimiento son del lote.
+     * Nombre, código de barras y precio son del producto (afectan a todos sus lotes);
+     * cantidad y vencimiento son del lote.
      * Si cambia la cantidad se registra un movimiento de ENTRADA o SALIDA por la diferencia.
      *
-     * @throws IllegalArgumentException si los datos no son válidos.
+     * @throws IllegalArgumentException si los datos no son válidos o el código ya es de otro producto.
      */
-    suspend fun editarLote(
-        idLote: Int,
-        nombre: String,
-        cantidad: Int,
-        precio: Double?,
-        fechaVencimiento: String
-    ) {
-        val vencimiento = parsearFecha(fechaVencimiento)
-            ?: throw IllegalArgumentException("Fecha inválida: '$fechaVencimiento'. Usá DD/MM/AAAA")
-        require(nombre.isNotBlank()) { "El nombre no puede estar vacío" }
-        require(cantidad > 0) { "La cantidad debe ser mayor a 0" }
-        require(precio == null || precio >= 0) { "El precio no puede ser negativo" }
+    suspend fun editarLote(cambios: CambiosLote) {
+        val vencimiento = parsearFecha(cambios.fechaVencimiento)
+            ?: throw IllegalArgumentException("Fecha inválida: '${cambios.fechaVencimiento}'. Usá DD/MM/AAAA")
+        require(cambios.nombre.isNotBlank()) { "El nombre no puede estar vacío" }
+        require(cambios.cantidad > 0) { "La cantidad debe ser mayor a 0" }
+        require(cambios.precio == null || cambios.precio >= 0) { "El precio no puede ser negativo" }
+        val codigo = normalizarCodigo(cambios.codigoBarra)
 
         database.withTransaction {
-            val lote = loteDao.obtenerPorId(idLote)
+            val lote = loteDao.obtenerPorId(cambios.idLote)
                 ?: throw IllegalArgumentException("El lote ya no existe")
             val producto = productoDao.obtenerPorId(lote.idProducto)
                 ?: throw IllegalArgumentException("El producto ya no existe")
 
-            productoDao.actualizar(
-                producto.copy(nombre = nombre.trim(), precioVenta = precio ?: 0.0)
-            )
-            loteDao.actualizar(lote.copy(cantidadActual = cantidad, fechaVencimiento = vencimiento))
+            // El código de barras es único: no puede quedar repetido en dos productos
+            if (codigo != null && codigo != producto.codigoBarra) {
+                productoDao.obtenerPorCodigoBarra(codigo)?.let {
+                    throw IllegalArgumentException("El código $codigo ya pertenece a ${it.nombre}")
+                }
+            }
 
-            val diferencia = cantidad - lote.cantidadActual
+            productoDao.actualizar(
+                producto.copy(
+                    nombre = cambios.nombre.trim(),
+                    codigoBarra = codigo,
+                    precioVenta = cambios.precio ?: 0.0
+                )
+            )
+            loteDao.actualizar(lote.copy(cantidadActual = cambios.cantidad, fechaVencimiento = vencimiento))
+
+            val diferencia = cambios.cantidad - lote.cantidadActual
             if (diferencia != 0) {
                 movimientoDao.insertar(
                     MovimientoEntity(
                         tipo = if (diferencia > 0) MovimientoEntity.TIPO_ENTRADA else MovimientoEntity.TIPO_SALIDA,
-                        idLote = idLote,
+                        idLote = cambios.idLote,
                         cantidad = kotlin.math.abs(diferencia)
                     )
                 )

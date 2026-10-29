@@ -8,9 +8,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,7 +24,6 @@ import com.example.stockflow.ui.screens.escaner.PantallaEscaner
 import kotlinx.coroutines.launch
 import androidx.camera.core.ExperimentalGetImage
 import androidx.annotation.OptIn
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -94,18 +95,16 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository) {
     }
 
     Scaffold(
+        // Arriba no se reserva nada: la barra de título de cada pantalla ya se acomoda bajo la barra de estado
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            NavigationBar (
-                // Usa las Insets nativas de las barras de navegación:
-                // Si hay botones (Atrás, Inicio, Recientes), asigna su espacio exacto automáticamente.
-                // Si el usuario usa navegación por gestos, la barra se acomoda al borde inferior aprovechando la pantalla.
-                windowInsets = WindowInsets(0)
-            ) {
+            // Con sus insets por defecto la barra queda justo encima de los botones del sistema
+            // (atrás, inicio, recientes) en vez de quedar tapada por ellos
+            NavigationBar {
                 NavigationBarItem(
                     selected = pestañaSeleccionada == 0,
                     onClick = { cambiarPestaña(0) },
-                    icon = { Icon(Icons.Default.Info, contentDescription = "Inventario") },
+                    icon = { Icon(Icons.Default.Inventory2, contentDescription = "Inventario") },
                     label = { Text("Inventario") }
                 )
                 NavigationBarItem(
@@ -123,15 +122,21 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository) {
             }
         }
     ) { padding ->
-        Surface(modifier = Modifier.padding(padding)) {
+        Surface(
+            modifier = Modifier
+                .padding(padding)
+                // Las barras del sistema ya se reservaron acá: así las pantallas internas
+                // no vuelven a dejar ese espacio vacío (la "barra invisible")
+                .consumeWindowInsets(padding)
+        ) {
             when (pestañaSeleccionada) {
                 0 -> PantallaAlertas(
                     lotes = listaLotes,
                     busquedaInicial = busquedaInventario,
-                    onEditarLote = { idLote, nombre, cantidad, precio, fecha ->
+                    onEditarLote = { cambios ->
                         scope.launch {
                             try {
-                                inventario.editarLote(idLote, nombre, cantidad, precio, fecha)
+                                inventario.editarLote(cambios)
                                 Toast.makeText(context, "Lote actualizado", Toast.LENGTH_SHORT).show()
                             } catch (e: IllegalArgumentException) {
                                 Toast.makeText(context, e.message, Toast.LENGTH_LONG).show()

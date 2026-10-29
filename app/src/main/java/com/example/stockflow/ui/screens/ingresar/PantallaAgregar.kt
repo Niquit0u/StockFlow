@@ -12,6 +12,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.stockflow.ui.componentes.CampoCantidad
+import com.example.stockflow.ui.componentes.CampoFecha
+import com.example.stockflow.ui.componentes.esFechaValida
 import com.example.stockflow.ui.screens.escaner.EscanerPantallaCompleta
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -167,17 +170,24 @@ fun PantallaAgregar(
                 )
             }
 
-            OutlinedTextField(
-                value = cantidad,
-                onValueChange = { cantidad = it },
-                label = { Text("Cantidad Recibida (Unidades)") },
+            CampoCantidad(
+                valor = cantidad,
+                onValorChange = { cantidad = it },
+                etiqueta = "Cantidad Recibida (Unidades)",
                 modifier = Modifier.fillMaxWidth()
             )
 
-            OutlinedTextField(
-                value = fechaVencimiento,
-                onValueChange = { fechaVencimiento = it },
-                label = { Text("Fecha Vencimiento (DD/MM/AAAA)") },
+            // Marca error solo cuando la fecha está completa (10 caracteres) y no existe, ej. 31/02/2027
+            val fechaInvalida = fechaVencimiento.length == 10 && !esFechaValida(fechaVencimiento)
+            CampoFecha(
+                fecha = fechaVencimiento,
+                onFechaChange = { fechaVencimiento = it },
+                esError = fechaInvalida,
+                textoAyuda = if (fechaInvalida) {
+                    { Text("Esa fecha no existe") }
+                } else {
+                    null
+                },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -189,8 +199,8 @@ fun PantallaAgregar(
                     val precioIngresado = precio.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }
                     errorPrecio = productoIdentificado == null && precioIngresado == null
 
-                    if (nombre.isNotBlank() && cantidad.isNotBlank() && fechaVencimiento.isNotBlank() && !errorPrecio) {
-                        val cantInt = cantidad.toIntOrNull() ?: 1
+                    val cantInt = cantidad.toIntOrNull()?.takeIf { it > 0 }
+                    if (nombre.isNotBlank() && cantInt != null && esFechaValida(fechaVencimiento) && !errorPrecio) {
                         val nuevoLote = LoteItem(
                             idLote = "L" + (100..999).random(),
                             nombreProducto = nombre,

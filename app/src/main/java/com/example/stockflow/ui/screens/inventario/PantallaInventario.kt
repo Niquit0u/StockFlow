@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -25,6 +27,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.stockflow.ui.componentes.CampoCantidad
+import com.example.stockflow.ui.componentes.CampoFecha
+import com.example.stockflow.ui.componentes.esFechaValida
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -33,8 +38,8 @@ import java.util.Locale
 fun PantallaAlertas(
     lotes: List<LoteItem>,
     busquedaInicial: String = "", // Texto a buscar al llegar desde el escáner
-    // Guarda los cambios de un lote: (idLote, nombre, cantidad, precio, fechaVencimiento)
-    onEditarLote: (Int, String, Int, Double?, String) -> Unit = { _, _, _, _, _ -> }
+    // Guarda los cambios hechos a un lote con el lápiz
+    onEditarLote: (CambiosLote) -> Unit = {}
 ) {
 
     // Lote abierto en el diálogo de edición (lápiz)
@@ -709,15 +714,9 @@ fun PantallaAlertas(
 
             lote = lote,
 
-            onGuardar = { nombre, cantidad, precio, fecha ->
+            onGuardar = { cambios ->
 
-                onEditarLote(
-                    lote.idLote.toInt(),
-                    nombre,
-                    cantidad,
-                    precio,
-                    fecha
-                )
+                onEditarLote(cambios)
 
                 loteEnEdicion = null
             },
@@ -1345,13 +1344,14 @@ fun DialogoEditarLote(
 
     lote: LoteItem,
 
-    onGuardar: (nombre: String, cantidad: Int, precio: Double?, fecha: String) -> Unit,
+    onGuardar: (CambiosLote) -> Unit,
 
     onCancelar: () -> Unit
 
 ) {
 
     var nombre by remember { mutableStateOf(lote.nombreProducto) }
+    var codigoBarra by remember { mutableStateOf(lote.codigoBarra) }
     var cantidad by remember { mutableStateOf(lote.cantidadActual.toString()) }
     var precio by remember { mutableStateOf(lote.precio?.toString().orEmpty()) }
     var fecha by remember { mutableStateOf(lote.fechaVencimiento) }
@@ -1361,7 +1361,7 @@ fun DialogoEditarLote(
     val precioIngresado = precio.trim().replace(',', '.')
     val precioValido = precioIngresado.isEmpty() ||
         precioIngresado.toDoubleOrNull()?.let { it >= 0 } == true
-    val fechaValida = convertirFecha(fecha.trim()) != Long.MAX_VALUE
+    val fechaValida = esFechaValida(fecha)
 
     val todoValido = nombre.isNotBlank() && cantidadValida != null && precioValido && fechaValida
 
@@ -1376,6 +1376,7 @@ fun DialogoEditarLote(
         text = {
 
             Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
 
@@ -1388,12 +1389,19 @@ fun DialogoEditarLote(
                 )
 
                 OutlinedTextField(
-                    value = cantidad,
-                    onValueChange = { nuevo -> cantidad = nuevo.filter { it.isDigit() } },
-                    label = { Text("Cantidad (unidades)") },
-                    isError = cantidadValida == null,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    value = codigoBarra,
+                    onValueChange = { codigoBarra = it.trim() },
+                    label = { Text("Código de Barras (EAN/QR)") },
+                    supportingText = {
+                        if (codigoBarra.isBlank()) Text("Vacío = producto sin código")
+                    },
                     singleLine = true
+                )
+
+                CampoCantidad(
+                    valor = cantidad,
+                    onValorChange = { cantidad = it },
+                    esError = cantidadValida == null
                 )
 
                 OutlinedTextField(
@@ -1405,16 +1413,15 @@ fun DialogoEditarLote(
                     singleLine = true
                 )
 
-                OutlinedTextField(
-                    value = fecha,
-                    onValueChange = { fecha = it },
-                    label = { Text("Vencimiento (DD/MM/AAAA)") },
-                    isError = !fechaValida,
-                    singleLine = true
+                CampoFecha(
+                    fecha = fecha,
+                    onFechaChange = { fecha = it },
+                    etiqueta = "Vencimiento (DD/MM/AAAA)",
+                    esError = !fechaValida
                 )
 
                 Text(
-                    text = "El nombre y el precio se aplican a todos los lotes de este producto.",
+                    text = "El nombre, el código y el precio se aplican a todos los lotes de este producto.",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1427,10 +1434,14 @@ fun DialogoEditarLote(
                 enabled = todoValido,
                 onClick = {
                     onGuardar(
-                        nombre.trim(),
-                        cantidadValida ?: return@TextButton,
-                        precioIngresado.toDoubleOrNull(),
-                        fecha.trim()
+                        CambiosLote(
+                            idLote = lote.idLote.toInt(),
+                            nombre = nombre.trim(),
+                            codigoBarra = codigoBarra.trim(),
+                            cantidad = cantidadValida ?: return@TextButton,
+                            precio = precioIngresado.toDoubleOrNull(),
+                            fechaVencimiento = fecha
+                        )
                     )
                 }
             ) {
