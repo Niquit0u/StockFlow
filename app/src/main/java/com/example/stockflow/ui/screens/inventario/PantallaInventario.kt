@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.List
@@ -20,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.text.SimpleDateFormat
@@ -27,18 +30,28 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PantallaAlertas(lotes: List<LoteItem>) {
+fun PantallaAlertas(
+    lotes: List<LoteItem>,
+    busquedaInicial: String = "", // Texto a buscar al llegar desde el escáner
+    // Guarda los cambios de un lote: (idLote, nombre, cantidad, precio, fechaVencimiento)
+    onEditarLote: (Int, String, Int, Double?, String) -> Unit = { _, _, _, _, _ -> }
+) {
+
+    // Lote abierto en el diálogo de edición (lápiz)
+    var loteEnEdicion by remember {
+        mutableStateOf<LoteItem?>(null)
+    }
 
     var categoriaSeleccionada by remember {
         mutableStateOf<String?>(null)
     }
 
     var textoBusqueda by remember {
-        mutableStateOf("")
+        mutableStateOf(busquedaInicial)
     }
 
     var mostrarBusqueda by remember {
-        mutableStateOf(false)
+        mutableStateOf(busquedaInicial.isNotBlank())
     }
 
     var ordenSeleccionado by remember {
@@ -677,13 +690,42 @@ fun PantallaAlertas(lotes: List<LoteItem>) {
 
                                 expandidoInicial =
                                     producto.nombreProducto ==
-                                            productoAExpandir
+                                            productoAExpandir,
+
+                                onEditarLote = {
+                                    loteEnEdicion = it
+                                }
                             )
                         }
                     }
                 }
             }
         }
+    }
+
+    loteEnEdicion?.let { lote ->
+
+        DialogoEditarLote(
+
+            lote = lote,
+
+            onGuardar = { nombre, cantidad, precio, fecha ->
+
+                onEditarLote(
+                    lote.idLote.toInt(),
+                    nombre,
+                    cantidad,
+                    precio,
+                    fecha
+                )
+
+                loteEnEdicion = null
+            },
+
+            onCancelar = {
+                loteEnEdicion = null
+            }
+        )
     }
 }
 
@@ -938,7 +980,9 @@ fun TarjetaProductoExpandible(
 
     producto: Producto,
 
-    expandidoInicial: Boolean = false
+    expandidoInicial: Boolean = false,
+
+    onEditarLote: (LoteItem) -> Unit = {}
 
 ) {
 
@@ -1129,7 +1173,10 @@ fun TarjetaProductoExpandible(
                     producto.lotes.forEach { lote ->
 
                         FilaDetalleLote(
-                            lote = lote
+                            lote = lote,
+                            onEditar = {
+                                onEditarLote(lote)
+                            }
                         )
                     }
                 }
@@ -1148,7 +1195,9 @@ fun TarjetaProductoExpandible(
 @Composable
 fun FilaDetalleLote(
 
-    lote: LoteItem
+    lote: LoteItem,
+
+    onEditar: () -> Unit = {}
 
 ) {
 
@@ -1263,5 +1312,137 @@ fun FilaDetalleLote(
                     colorEstado
             )
         }
+
+        IconButton(
+            onClick = onEditar
+        ) {
+
+            Icon(
+                imageVector =
+                    Icons.Default.Edit,
+
+                contentDescription =
+                    "Editar lote ${lote.idLote}",
+
+                tint =
+                    MaterialTheme
+                        .colorScheme
+                        .primary
+            )
+        }
     }
+}
+
+
+/*
+ * ------------------------------------------------
+ * EDICIÓN DE LOTE
+ * ------------------------------------------------
+ */
+
+@Composable
+fun DialogoEditarLote(
+
+    lote: LoteItem,
+
+    onGuardar: (nombre: String, cantidad: Int, precio: Double?, fecha: String) -> Unit,
+
+    onCancelar: () -> Unit
+
+) {
+
+    var nombre by remember { mutableStateOf(lote.nombreProducto) }
+    var cantidad by remember { mutableStateOf(lote.cantidadActual.toString()) }
+    var precio by remember { mutableStateOf(lote.precio?.toString().orEmpty()) }
+    var fecha by remember { mutableStateOf(lote.fechaVencimiento) }
+
+    val cantidadValida = cantidad.toIntOrNull()?.takeIf { it > 0 }
+    // Vacío = sin precio; acepta coma o punto como separador decimal
+    val precioIngresado = precio.trim().replace(',', '.')
+    val precioValido = precioIngresado.isEmpty() ||
+        precioIngresado.toDoubleOrNull()?.let { it >= 0 } == true
+    val fechaValida = convertirFecha(fecha.trim()) != Long.MAX_VALUE
+
+    val todoValido = nombre.isNotBlank() && cantidadValida != null && precioValido && fechaValida
+
+    AlertDialog(
+
+        onDismissRequest = onCancelar,
+
+        title = {
+            Text("Editar lote ${lote.idLote}")
+        },
+
+        text = {
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+
+                OutlinedTextField(
+                    value = nombre,
+                    onValueChange = { nombre = it },
+                    label = { Text("Nombre del producto") },
+                    isError = nombre.isBlank(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = cantidad,
+                    onValueChange = { nuevo -> cantidad = nuevo.filter { it.isDigit() } },
+                    label = { Text("Cantidad (unidades)") },
+                    isError = cantidadValida == null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = precio,
+                    onValueChange = { precio = it },
+                    label = { Text("Precio de venta ($)") },
+                    isError = !precioValido,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = fecha,
+                    onValueChange = { fecha = it },
+                    label = { Text("Vencimiento (DD/MM/AAAA)") },
+                    isError = !fechaValida,
+                    singleLine = true
+                )
+
+                Text(
+                    text = "El nombre y el precio se aplican a todos los lotes de este producto.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+
+        confirmButton = {
+
+            TextButton(
+                enabled = todoValido,
+                onClick = {
+                    onGuardar(
+                        nombre.trim(),
+                        cantidadValida ?: return@TextButton,
+                        precioIngresado.toDoubleOrNull(),
+                        fecha.trim()
+                    )
+                }
+            ) {
+                Text("Guardar")
+            }
+        },
+
+        dismissButton = {
+
+            TextButton(onClick = onCancelar) {
+                Text("Cancelar")
+            }
+        }
+    )
 }

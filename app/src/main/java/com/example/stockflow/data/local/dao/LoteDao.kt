@@ -27,7 +27,7 @@ interface LoteDao {
 
     @Query(
         """
-        SELECT lotes.*, productos.nombre, productos.codigoBarra, productos.categoria
+        SELECT lotes.*, productos.nombre, productos.codigoBarra, productos.categoria, productos.precioVenta
         FROM lotes
         INNER JOIN productos ON productos.idProducto = lotes.idProducto
         WHERE lotes.cantidadActual > 0

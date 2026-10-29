@@ -11,5 +11,7 @@ data class LoteConProducto(
 
     val codigoBarra: String?,
 
-    val categoria: String
+    val categoria: String,
+
+    val precioVenta: Double
 )
