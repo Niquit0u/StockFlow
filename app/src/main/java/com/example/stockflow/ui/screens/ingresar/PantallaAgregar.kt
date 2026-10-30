@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -113,14 +114,6 @@ fun PantallaAgregar(
                 fontWeight = FontWeight.SemiBold
             )
 
-            Button(
-                onClick = { mostrarEscaner = true },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text("📷 Escanear Código de Barras")
-            }
-
             // El texto de ayuda solo se agrega cuando hay algo que decir: si se pasa vacío,
             // el campo igual reserva su lugar y queda más separado que los demás
             val ayudaCodigo = when {
@@ -132,6 +125,17 @@ fun PantallaAgregar(
                 value = codigoBarra,
                 onValueChange = { codigoBarra = it },
                 label = { Text("Código de Barras (EAN/QR)") },
+                // Botón para escanear con la cámara, dentro del mismo campo
+                trailingIcon = {
+                    IconButton(onClick = { mostrarEscaner = true }) {
+                        Icon(
+                            imageVector = Icons.Default.PhotoCamera,
+                            contentDescription = "Escanear código de barras",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                },
+                singleLine = true,
                 supportingText = ayudaCodigo?.let { texto -> { Text(texto) } },
                 modifier = Modifier.fillMaxWidth().visibleAlEscribir()
             )
