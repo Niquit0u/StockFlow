@@ -14,14 +14,11 @@ import androidx.room.PrimaryKey
 data class UsuarioEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val nombreUsuario: String,
-    // Siempre en minúsculas, para que "Ana@Mail.com" y "ana@mail.com" sean la misma cuenta
-    val email: String,
+    // Siempre en minúsculas, para que "Ana@Mail.com" y "ana@mail.com" sean la misma cuenta.
+    // null para los usuarios que crea el dueño (solo nombre y contraseña)
+    val email: String? = null,
     // Nunca texto plano: "salt:hash" generado por UsuarioRepository
     val contrasena: String,
+    // Rol.clave: DUENO, ADMINISTRADOR o EMPLEADO
     val rol: String
-) {
-    companion object {
-        const val ROL_DUENO = "DUENO"
-        const val ROL_CLIENTE = "CLIENTE"
-    }
-}
+)
