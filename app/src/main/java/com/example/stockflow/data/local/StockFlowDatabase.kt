@@ -29,7 +29,7 @@ import com.example.stockflow.data.local.entity.VentaEntity
         DispositivoEntity::class,
         UsuarioEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class StockFlowDatabase : RoomDatabase() {

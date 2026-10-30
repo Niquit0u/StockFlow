@@ -17,6 +17,7 @@ class VentaRepository(private val ventaDao: VentaDao) {
                 idVenta = idVenta,
                 fechaHora = venta.fechaHora,
                 montoTotal = venta.montoTotal,
+                vendedor = venta.vendedor,
                 productos = detalles.map { DetalleVentaItem(it.nombreProducto, it.cantidad, it.subtotal) }
             )
         }

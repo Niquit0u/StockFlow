@@ -191,17 +191,13 @@ fun AplicacionInteractivaStockFlow(
                 .consumeWindowInsets(padding)
         ) {
             when (pestañaSeleccionada) {
-                Seccion.INVENTARIO -> if (mostrarHistorialVentas && rol.puedeVerVentas) {
+                Seccion.INVENTARIO -> if (mostrarHistorialVentas) {
                     PantallaHistorialVentas(
                         ventas = historialVentas,
                         onVolver = { mostrarHistorialVentas = false }
                     )
                 } else PantallaAlertas(
-                    onAbrirHistorial = if (rol.puedeVerVentas) {
-                        { mostrarHistorialVentas = true }
-                    } else {
-                        null
-                    },
+                    onAbrirHistorial = { mostrarHistorialVentas = true },
                     lotes = listaLotes,
                     busquedaInicial = busquedaInventario,
                     onEditarLote = if (!rol.puedeEditarInventario) null else { cambios ->
@@ -226,7 +222,7 @@ fun AplicacionInteractivaStockFlow(
                     onDescontar = { items ->
                         scope.launch {
                             try {
-                                val idVenta = inventario.descontarStock(items)
+                                val idVenta = inventario.descontarStock(items, sesion)
                                 Toast.makeText(
                                     context,
                                     "Venta #$idVenta registrada: ${items.sumOf { it.cantidad }} unidades",

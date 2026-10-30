@@ -56,6 +56,7 @@ data class VentaItem(
     val idVenta: Int,
     val fechaHora: Long, // epoch millis
     val montoTotal: Double,
+    val vendedor: String, // nombre del usuario que hizo la venta
     val productos: List<DetalleVentaItem>
 )
 
@@ -79,9 +80,6 @@ enum class Rol(val clave: String, val nombreVisible: String) {
 
     // Pestaña Ingresar Stock
     val puedeIngresarStock: Boolean get() = this != EMPLEADO
-
-    // Historial de ventas (botón de recibo en Inventario)
-    val puedeVerVentas: Boolean get() = this != EMPLEADO
 
     // Crear y eliminar usuarios
     val puedeGestionarUsuarios: Boolean get() = this == DUENO
