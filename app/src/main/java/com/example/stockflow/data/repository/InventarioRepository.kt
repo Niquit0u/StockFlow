@@ -5,6 +5,7 @@ import com.example.stockflow.CambiosLote
 import com.example.stockflow.EstadoSemaforo
 import com.example.stockflow.ItemDescuento
 import com.example.stockflow.LoteItem
+import com.example.stockflow.SesionUsuario
 import com.example.stockflow.data.local.StockFlowDatabase
 import com.example.stockflow.data.local.entity.LoteConProducto
 import com.example.stockflow.data.local.entity.LoteEntity
@@ -60,7 +61,7 @@ class InventarioRepository(private val database: StockFlowDatabase) {
     /**
      * Registra como venta todos los productos escaneados en "Descontar productos" y descuenta su stock,
      * en una sola transacción: si algo falla no se guarda nada.
-     * - Crea la venta (fecha y monto total) y un detalle por producto con su subtotal.
+     * - Crea la venta (fecha, monto total y usuario que la hizo) y un detalle por producto con su subtotal.
      * - Descuenta por FEFO (primero los lotes que vencen antes) y registra un movimiento de SALIDA por lote.
      * Los lotes que quedan en 0 no se borran (sus movimientos los referencian); dejan de mostrarse.
      * Productos sin precio cargado suman $0 al total.
@@ -68,11 +69,13 @@ class InventarioRepository(private val database: StockFlowDatabase) {
      * @return el id de la venta creada.
      * @throws IllegalStateException si un producto no existe o no tiene stock suficiente.
      */
-    suspend fun descontarStock(items: List<ItemDescuento>): Long = database.withTransaction {
+    suspend fun descontarStock(items: List<ItemDescuento>, vendedor: SesionUsuario): Long = database.withTransaction {
         val idVenta = ventaDao.insertar(
             VentaEntity(
                 fechaHora = System.currentTimeMillis(),
-                montoTotal = items.sumOf { it.subtotal ?: 0.0 }
+                montoTotal = items.sumOf { it.subtotal ?: 0.0 },
+                idUsuario = vendedor.idUsuario,
+                vendedor = vendedor.nombre
             )
         ).toInt()
 

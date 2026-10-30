@@ -39,10 +39,10 @@ import java.util.Locale
 fun PantallaAlertas(
     lotes: List<LoteItem>,
     busquedaInicial: String = "", // Texto a buscar al llegar desde el escáner
-    // Guarda los cambios hechos a un lote con el lápiz
-    onEditarLote: (CambiosLote) -> Unit = {},
-    // Abre el historial de ventas (botón de recibo en la barra superior)
-    onAbrirHistorial: () -> Unit = {}
+    // Guarda los cambios hechos a un lote con el lápiz; null = sin permiso (no se muestra el lápiz)
+    onEditarLote: ((CambiosLote) -> Unit)? = null,
+    // Abre el historial de ventas (botón de recibo); null = sin permiso (no se muestra el botón)
+    onAbrirHistorial: (() -> Unit)? = null
 ) {
 
     // Lote abierto en el diálogo de edición (lápiz)
@@ -321,7 +321,7 @@ fun PantallaAlertas(
                 actions = {
 
                     // Historial de ventas (se oculta mientras se busca, para dejar lugar al buscador)
-                    if (!mostrarBusqueda) {
+                    if (!mostrarBusqueda && onAbrirHistorial != null) {
 
                         IconButton(
                             onClick = onAbrirHistorial
@@ -717,9 +717,12 @@ fun PantallaAlertas(
                                     producto.nombreProducto ==
                                             productoAExpandir,
 
-                                onEditarLote = {
-                                    loteEnEdicion = it
-                                }
+                                onEditarLote =
+                                    if (onEditarLote != null) {
+                                        { loteEnEdicion = it }
+                                    } else {
+                                        null
+                                    }
                             )
                         }
                     }
@@ -736,7 +739,7 @@ fun PantallaAlertas(
 
             onGuardar = { cambios ->
 
-                onEditarLote(cambios)
+                onEditarLote?.invoke(cambios)
 
                 loteEnEdicion = null
             },
@@ -1001,7 +1004,8 @@ fun TarjetaProductoExpandible(
 
     expandidoInicial: Boolean = false,
 
-    onEditarLote: (LoteItem) -> Unit = {}
+    // null = sin permiso de edición
+    onEditarLote: ((LoteItem) -> Unit)? = null
 
 ) {
 
@@ -1193,8 +1197,8 @@ fun TarjetaProductoExpandible(
 
                         FilaDetalleLote(
                             lote = lote,
-                            onEditar = {
-                                onEditarLote(lote)
+                            onEditar = onEditarLote?.let { editar ->
+                                { editar(lote) }
                             }
                         )
                     }
@@ -1216,7 +1220,8 @@ fun FilaDetalleLote(
 
     lote: LoteItem,
 
-    onEditar: () -> Unit = {}
+    // null = sin permiso: no se muestra el lápiz
+    onEditar: (() -> Unit)? = null
 
 ) {
 
@@ -1332,22 +1337,25 @@ fun FilaDetalleLote(
             )
         }
 
-        IconButton(
-            onClick = onEditar
-        ) {
+        if (onEditar != null) {
 
-            Icon(
-                imageVector =
-                    Icons.Default.Edit,
+            IconButton(
+                onClick = onEditar
+            ) {
 
-                contentDescription =
-                    "Editar lote ${lote.idLote}",
+                Icon(
+                    imageVector =
+                        Icons.Default.Edit,
 
-                tint =
-                    MaterialTheme
-                        .colorScheme
-                        .primary
-            )
+                    contentDescription =
+                        "Editar lote ${lote.idLote}",
+
+                    tint =
+                        MaterialTheme
+                            .colorScheme
+                            .primary
+                )
+            }
         }
     }
 }

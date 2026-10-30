@@ -1,7 +1,12 @@
 package com.example.stockflow.data.repository
 
+import com.example.stockflow.Rol
+import com.example.stockflow.SesionUsuario
+import com.example.stockflow.UsuarioItem
 import com.example.stockflow.data.local.dao.UsuarioDao
 import com.example.stockflow.data.local.entity.UsuarioEntity
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import java.security.MessageDigest
 import java.security.SecureRandom
 import javax.crypto.SecretKeyFactory
@@ -9,36 +14,68 @@ import javax.crypto.spec.PBEKeySpec
 
 class UsuarioRepository(private val usuarioDao: UsuarioDao) {
 
-    enum class ResultadoRegistro { CREADO, NOMBRE_EN_USO, EMAIL_EN_USO }
+    enum class ResultadoRegistro { CREADO, NOMBRE_EN_USO, EMAIL_EN_USO, NO_PERMITIDO }
 
-    /**
-     * Crea una cuenta nueva. La primera cuenta del teléfono queda como dueño; las siguientes, como cliente.
-     */
-    suspend fun registrar(nombre: String, email: String, clave: String): ResultadoRegistro {
-        val nombreLimpio = nombre.trim()
-        val emailLimpio = email.trim().lowercase()
+    /** false mientras el teléfono no tenga ninguna cuenta: el login ofrece crear la del dueño. */
+    suspend fun hayUsuarios(): Boolean = usuarioDao.contar() > 0
 
-        if (usuarioDao.buscarUsuario(nombreLimpio) != null) return ResultadoRegistro.NOMBRE_EN_USO
-        if (usuarioDao.buscarPorEmail(emailLimpio) != null) return ResultadoRegistro.EMAIL_EN_USO
-
-        val rol = if (usuarioDao.contar() == 0) UsuarioEntity.ROL_DUENO else UsuarioEntity.ROL_CLIENTE
-        val usuario = UsuarioEntity(
-            nombreUsuario = nombreLimpio,
-            email = emailLimpio,
-            contrasena = hashear(clave),
-            rol = rol
-        )
-        // Por si otra cuenta con el mismo nombre/email se creó justo entre la búsqueda y el insert
-        return if (usuarioDao.insertarUsuario(usuario) != -1L) ResultadoRegistro.CREADO else ResultadoRegistro.NOMBRE_EN_USO
+    fun observarUsuarios(): Flow<List<UsuarioItem>> = usuarioDao.observarTodos().map { lista ->
+        lista.map { UsuarioItem(it.id, it.nombreUsuario, it.email, Rol.desdeClave(it.rol)) }
     }
 
-    /** @param usuarioOEmail el nombre de usuario o el email. @return el usuario si la contraseña coincide. */
-    suspend fun validar(usuarioOEmail: String, clave: String): UsuarioEntity? {
+    /**
+     * Crea la cuenta del dueño desde el login. Solo se permite cuando todavía no hay ninguna cuenta:
+     * después, los usuarios los crea el dueño con [crearUsuario].
+     */
+    suspend fun registrarDueno(nombre: String, email: String, clave: String): ResultadoRegistro {
+        if (hayUsuarios()) return ResultadoRegistro.NO_PERMITIDO
+        return insertar(nombre, email.trim().lowercase(), clave, Rol.DUENO)
+    }
+
+    /** El dueño crea un usuario (empleado o administrador) con nombre y contraseña. */
+    suspend fun crearUsuario(
+        solicitante: SesionUsuario,
+        nombre: String,
+        clave: String,
+        rol: Rol
+    ): ResultadoRegistro {
+        // Se valida acá también, no solo ocultando el botón en la pantalla
+        if (!solicitante.rol.puedeGestionarUsuarios || rol == Rol.DUENO) return ResultadoRegistro.NO_PERMITIDO
+        return insertar(nombre, null, clave, rol)
+    }
+
+    /** El dueño elimina un usuario. No puede eliminarse a sí mismo ni a otro dueño. @return true si se eliminó. */
+    suspend fun eliminarUsuario(solicitante: SesionUsuario, idUsuario: Int): Boolean {
+        if (!solicitante.rol.puedeGestionarUsuarios || idUsuario == solicitante.idUsuario) return false
+        val usuario = usuarioDao.buscarPorId(idUsuario) ?: return false
+        if (Rol.desdeClave(usuario.rol) == Rol.DUENO) return false
+        usuarioDao.eliminarPorId(idUsuario)
+        return true
+    }
+
+    /** @param usuarioOEmail el nombre de usuario o el email. @return la sesión si la contraseña coincide. */
+    suspend fun validar(usuarioOEmail: String, clave: String): SesionUsuario? {
         val texto = usuarioOEmail.trim()
         val usuario = usuarioDao.buscarUsuario(texto)
             ?: usuarioDao.buscarPorEmail(texto.lowercase())
             ?: return null
-        return usuario.takeIf { verificar(clave, it.contrasena) }
+        if (!verificar(clave, usuario.contrasena)) return null
+        return SesionUsuario(usuario.id, usuario.nombreUsuario, Rol.desdeClave(usuario.rol))
+    }
+
+    private suspend fun insertar(nombre: String, email: String?, clave: String, rol: Rol): ResultadoRegistro {
+        val nombreLimpio = nombre.trim()
+        if (usuarioDao.buscarUsuario(nombreLimpio) != null) return ResultadoRegistro.NOMBRE_EN_USO
+        if (email != null && usuarioDao.buscarPorEmail(email) != null) return ResultadoRegistro.EMAIL_EN_USO
+
+        val usuario = UsuarioEntity(
+            nombreUsuario = nombreLimpio,
+            email = email,
+            contrasena = hashear(clave),
+            rol = rol.clave
+        )
+        // Por si otra cuenta con el mismo nombre/email se creó justo entre la búsqueda y el insert
+        return if (usuarioDao.insertarUsuario(usuario) != -1L) ResultadoRegistro.CREADO else ResultadoRegistro.NOMBRE_EN_USO
     }
 
     private companion object {

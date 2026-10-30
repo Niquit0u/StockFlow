@@ -56,6 +56,7 @@ data class VentaItem(
     val idVenta: Int,
     val fechaHora: Long, // epoch millis
     val montoTotal: Double,
+    val vendedor: String, // nombre del usuario que hizo la venta
     val productos: List<DetalleVentaItem>
 )
 
@@ -63,6 +64,45 @@ data class DetalleVentaItem(
     val nombreProducto: String,
     val cantidad: Int,
     val subtotal: Double
+)
+
+/**
+ * Roles de usuario y lo que cada uno puede hacer.
+ * [clave] es lo que se guarda en la base (columna usuarios.rol).
+ */
+enum class Rol(val clave: String, val nombreVisible: String) {
+    DUENO("DUENO", "Dueño"),
+    ADMINISTRADOR("ADMINISTRADOR", "Administrador"),
+    EMPLEADO("EMPLEADO", "Empleado");
+
+    // Editar lotes desde Inventario
+    val puedeEditarInventario: Boolean get() = this != EMPLEADO
+
+    // Pestaña Ingresar Stock
+    val puedeIngresarStock: Boolean get() = this != EMPLEADO
+
+    // Crear y eliminar usuarios
+    val puedeGestionarUsuarios: Boolean get() = this == DUENO
+
+    companion object {
+        // Un valor desconocido (por ejemplo, de una versión vieja) se trata con el menor permiso
+        fun desdeClave(clave: String): Rol = entries.firstOrNull { it.clave == clave } ?: EMPLEADO
+    }
+}
+
+// Usuario que inició sesión
+data class SesionUsuario(
+    val idUsuario: Int,
+    val nombre: String,
+    val rol: Rol
+)
+
+// Usuario para la lista de "Cuenta" (gestión de usuarios del dueño)
+data class UsuarioItem(
+    val idUsuario: Int,
+    val nombre: String,
+    val email: String?,
+    val rol: Rol
 )
 
 /** Formatea un importe como "$1.234,50" según el idioma del teléfono. */

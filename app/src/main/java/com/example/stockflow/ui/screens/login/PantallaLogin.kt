@@ -55,17 +55,21 @@ import kotlinx.coroutines.launch
 /**
  * Pantalla de inicio de sesión, con la opción de crear una cuenta nueva.
  *
+ * @param permitirCrearCuenta true solo mientras el teléfono no tenga ninguna cuenta: se crea la del dueño.
+ * Después, los usuarios los crea el dueño desde la pestaña Cuenta.
  * @param onIniciarSesion valida usuario (o email) y contraseña; devuelve true si son correctos.
  * @param onCrearCuenta crea la cuenta (nombre, email, contraseña); devuelve null si se creó,
  * o el mensaje de error para mostrar (por ejemplo, email ya usado).
  */
 @Composable
 fun PantallaLogin(
+    permitirCrearCuenta: Boolean,
     onIniciarSesion: suspend (usuarioOEmail: String, contrasena: String) -> Boolean,
     onCrearCuenta: suspend (nombre: String, email: String, contrasena: String) -> String?
 ) {
     // false = iniciar sesión, true = crear cuenta
-    var modoCrearCuenta by rememberSaveable { mutableStateOf(false) }
+    var modoCrearCuentaElegido by rememberSaveable { mutableStateOf(false) }
+    val modoCrearCuenta = modoCrearCuentaElegido && permitirCrearCuenta
 
     var usuario by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
@@ -79,7 +83,7 @@ fun PantallaLogin(
     val focusManager = LocalFocusManager.current
 
     fun cambiarModo() {
-        modoCrearCuenta = !modoCrearCuenta
+        modoCrearCuentaElegido = !modoCrearCuenta
         mensajeError = null
         contrasena = ""
         repetirContrasena = ""
@@ -146,7 +150,11 @@ fun PantallaLogin(
             )
 
             Text(
-                text = if (modoCrearCuenta) "Completá tus datos para empezar" else "Inicia sesión para continuar",
+                text = if (modoCrearCuenta) {
+                    "Esta será la cuenta del dueño del comercio"
+                } else {
+                    "Inicia sesión para continuar"
+                },
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -279,8 +287,17 @@ fun PantallaLogin(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            TextButton(onClick = ::cambiarModo, enabled = !cargando) {
-                Text(if (modoCrearCuenta) "Ya tengo cuenta. Iniciar sesión" else "¿No tenés cuenta? Crear cuenta")
+            if (permitirCrearCuenta) {
+                TextButton(onClick = ::cambiarModo, enabled = !cargando) {
+                    Text(if (modoCrearCuenta) "Ya tengo cuenta. Iniciar sesión" else "¿No tenés cuenta? Crear cuenta")
+                }
+            } else {
+                Text(
+                    text = "¿No tenés usuario? Pedíselo al dueño del comercio.",
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -338,6 +355,7 @@ private const val MINIMO_CONTRASENA = 4
 private fun PantallaLoginPreview() {
     MaterialTheme {
         PantallaLogin(
+            permitirCrearCuenta = true,
             onIniciarSesion = { _, _ -> true },
             onCrearCuenta = { _, _, _ -> null }
         )

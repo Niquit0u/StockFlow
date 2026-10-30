@@ -11,6 +11,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.fillMaxSize
+import com.example.stockflow.ui.screens.cuenta.PantallaCuenta
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Search
@@ -29,10 +34,7 @@ import com.example.stockflow.ui.screens.escaner.PantallaEscaner
 import kotlinx.coroutines.launch
 import androidx.camera.core.ExperimentalGetImage
 import androidx.annotation.OptIn
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.unit.dp
 import com.example.stockflow.ui.screens.login.PantallaLogin
 
 class MainActivity : ComponentActivity() {
@@ -49,28 +51,46 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme {
-                // Estado que controla si el usuario ha iniciado sesión
-                var isLoggedIn by rememberSaveable { mutableStateOf(false) }
+                // Usuario que inició sesión (null = mostrar login). Se conserva al girar el teléfono
+                var sesion by rememberSaveable(stateSaver = GuardadoSesion) { mutableStateOf<SesionUsuario?>(null) }
+                // null mientras se consulta; false = el teléfono no tiene cuentas y se puede crear la del dueño
+                var hayUsuarios by remember { mutableStateOf<Boolean?>(null) }
 
-                if (isLoggedIn) {
-                    // Muestra el sistema principal de StockFlow
-                    AplicacionInteractivaStockFlow(inventario, ventas)
-                } else {
-                    PantallaLogin(
+                LaunchedEffect(sesion) { if (sesion == null) hayUsuarios = usuarios.hayUsuarios() }
+
+                val sesionActual = sesion
+                when {
+                    sesionActual != null -> AplicacionInteractivaStockFlow(
+                        sesion = sesionActual,
+                        inventario = inventario,
+                        ventas = ventas,
+                        usuarios = usuarios,
+                        onCerrarSesion = { sesion = null }
+                    )
+
+                    // Consultando la base: pantalla vacía por un instante
+                    hayUsuarios == null -> Surface(modifier = Modifier.fillMaxSize()) {}
+
+                    else -> PantallaLogin(
+                        permitirCrearCuenta = hayUsuarios == false,
                         onIniciarSesion = { usuarioOEmail, contrasena ->
-                            val valido = usuarios.validar(usuarioOEmail, contrasena) != null
-                            if (valido) isLoggedIn = true
-                            valido
+                            val encontrada = usuarios.validar(usuarioOEmail, contrasena)
+                            if (encontrada != null) sesion = encontrada
+                            encontrada != null
                         },
                         onCrearCuenta = { nombre, email, contrasena ->
-                            when (usuarios.registrar(nombre, email, contrasena)) {
+                            when (usuarios.registrarDueno(nombre, email, contrasena)) {
                                 UsuarioRepository.ResultadoRegistro.CREADO -> {
-                                    // La cuenta nueva entra directamente
-                                    isLoggedIn = true
+                                    // La cuenta del dueño entra directamente
+                                    sesion = usuarios.validar(nombre, contrasena)
                                     null
                                 }
                                 UsuarioRepository.ResultadoRegistro.NOMBRE_EN_USO -> "Ese nombre de usuario ya existe"
                                 UsuarioRepository.ResultadoRegistro.EMAIL_EN_USO -> "Ya hay una cuenta con ese email"
+                                UsuarioRepository.ResultadoRegistro.NO_PERMITIDO -> {
+                                    hayUsuarios = true
+                                    "Ya existe la cuenta del dueño. Pedile un usuario."
+                                }
                             }
                         }
                     )
@@ -80,16 +100,43 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// Guarda la sesión como lista simple para que sobreviva a la rotación de pantalla
+private val GuardadoSesion = Saver<SesionUsuario?, List<Any>>(
+    save = { sesion -> sesion?.let { listOf(it.idUsuario, it.nombre, it.rol.clave) } },
+    restore = { SesionUsuario(it[0] as Int, it[1] as String, Rol.desdeClave(it[2] as String)) }
+)
+
+// Pestañas de la barra inferior
+private enum class Seccion(val titulo: String, val icono: ImageVector) {
+    INVENTARIO("Inventario", Icons.Default.Inventory2),
+    ESCANER("Escáner", Icons.Default.Search),
+    INGRESAR("Ingresar Stock", Icons.Default.Add),
+    CUENTA("Cuenta", Icons.Default.Person)
+}
+
 
 @OptIn(ExperimentalGetImage::class, ExperimentalMaterial3Api::class, ExperimentalMaterial3Api::class)
 @Composable
-fun AplicacionInteractivaStockFlow(inventario: InventarioRepository, ventas: VentaRepository) {
+fun AplicacionInteractivaStockFlow(
+    sesion: SesionUsuario,
+    inventario: InventarioRepository,
+    ventas: VentaRepository,
+    usuarios: UsuarioRepository,
+    onCerrarSesion: () -> Unit
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val listaLotes by remember(inventario) { inventario.observarLotes() }.collectAsState(initial = emptyList())
 
-    // Estado de la pestaña activa (0: Inventario, 1: Escáner, 2: Agregar)
-    var pestañaSeleccionada by remember { mutableIntStateOf(0) }
+    val rol = sesion.rol
+
+    // Las pestañas dependen de los permisos: el empleado no ve "Ingresar Stock"
+    val secciones = remember(rol) {
+        Seccion.entries.filter { it != Seccion.INGRESAR || rol.puedeIngresarStock }
+    }
+    var pestañaSeleccionada by rememberSaveable { mutableStateOf(Seccion.INVENTARIO) }
+
+    val listaUsuarios by remember(usuarios) { usuarios.observarUsuarios() }.collectAsState(initial = emptyList())
 
     // Historial de ventas abierto dentro de la pestaña Inventario
     var mostrarHistorialVentas by remember { mutableStateOf(false) }
@@ -112,7 +159,7 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository, ventas: Ven
         )
     }
 
-    fun cambiarPestaña(pestaña: Int) {
+    fun cambiarPestaña(pestaña: Seccion) {
         busquedaInventario = ""
         mostrarHistorialVentas = false
         pestañaSeleccionada = pestaña
@@ -125,24 +172,14 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository, ventas: Ven
             // Con sus insets por defecto la barra queda justo encima de los botones del sistema
             // (atrás, inicio, recientes) en vez de quedar tapada por ellos
             NavigationBar {
-                NavigationBarItem(
-                    selected = pestañaSeleccionada == 0,
-                    onClick = { cambiarPestaña(0) },
-                    icon = { Icon(Icons.Default.Inventory2, contentDescription = "Inventario") },
-                    label = { Text("Inventario") }
-                )
-                NavigationBarItem(
-                    selected = pestañaSeleccionada == 1,
-                    onClick = { cambiarPestaña(1) },
-                    icon = { Icon(Icons.Default.Search, contentDescription = "Escáner") },
-                    label = { Text("Escáner") }
-                )
-                NavigationBarItem(
-                    selected = pestañaSeleccionada == 2,
-                    onClick = { cambiarPestaña(2) },
-                    icon = { Icon(Icons.Default.Add, contentDescription = "Agregar") },
-                    label = { Text("Ingresar Stock") }
-                )
+                secciones.forEach { seccion ->
+                    NavigationBarItem(
+                        selected = pestañaSeleccionada == seccion,
+                        onClick = { cambiarPestaña(seccion) },
+                        icon = { Icon(seccion.icono, contentDescription = seccion.titulo) },
+                        label = { Text(seccion.titulo) }
+                    )
+                }
             }
         }
     ) { padding ->
@@ -154,7 +191,7 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository, ventas: Ven
                 .consumeWindowInsets(padding)
         ) {
             when (pestañaSeleccionada) {
-                0 -> if (mostrarHistorialVentas) {
+                Seccion.INVENTARIO -> if (mostrarHistorialVentas) {
                     PantallaHistorialVentas(
                         ventas = historialVentas,
                         onVolver = { mostrarHistorialVentas = false }
@@ -163,7 +200,7 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository, ventas: Ven
                     onAbrirHistorial = { mostrarHistorialVentas = true },
                     lotes = listaLotes,
                     busquedaInicial = busquedaInventario,
-                    onEditarLote = { cambios ->
+                    onEditarLote = if (!rol.puedeEditarInventario) null else { cambios ->
                         scope.launch {
                             try {
                                 inventario.editarLote(cambios)
@@ -175,17 +212,17 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository, ventas: Ven
                     }
                 )
 
-                1 -> PantallaEscaner(
+                Seccion.ESCANER -> PantallaEscaner(
                     buscarProducto = ::buscarProductoPorCodigo,
                     onBuscarEnInventario = { producto ->
                         // Abre Inventario con la búsqueda del producto ya cargada
                         busquedaInventario = producto.nombreProducto
-                        pestañaSeleccionada = 0
+                        pestañaSeleccionada = Seccion.INVENTARIO
                     },
                     onDescontar = { items ->
                         scope.launch {
                             try {
-                                val idVenta = inventario.descontarStock(items)
+                                val idVenta = inventario.descontarStock(items, sesion)
                                 Toast.makeText(
                                     context,
                                     "Venta #$idVenta registrada: ${items.sumOf { it.cantidad }} unidades",
@@ -198,7 +235,10 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository, ventas: Ven
                     }
                 )
 
-                2 -> PantallaAgregar(
+                // Si el rol no puede ingresar stock la pestaña no existe; por las dudas se muestra el inventario
+                Seccion.INGRESAR -> if (!rol.puedeIngresarStock) {
+                    LaunchedEffect(Unit) { cambiarPestaña(Seccion.INVENTARIO) }
+                } else PantallaAgregar(
                     buscarProductoPorCodigo = { codigo ->
                         listaLotes.firstOrNull { it.codigoBarra == codigo }
                     },
@@ -211,6 +251,30 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository, ventas: Ven
                             }
                         }
                     }
+                )
+
+                Seccion.CUENTA -> PantallaCuenta(
+                    sesion = sesion,
+                    usuarios = listaUsuarios,
+                    onCrearUsuario = { nombre, contrasena, rolNuevo ->
+                        when (usuarios.crearUsuario(sesion, nombre, contrasena, rolNuevo)) {
+                            UsuarioRepository.ResultadoRegistro.CREADO -> {
+                                Toast.makeText(context, "Usuario $nombre creado", Toast.LENGTH_SHORT).show()
+                                null
+                            }
+                            UsuarioRepository.ResultadoRegistro.NOMBRE_EN_USO -> "Ese nombre de usuario ya existe"
+                            UsuarioRepository.ResultadoRegistro.EMAIL_EN_USO -> "Ya hay una cuenta con ese email"
+                            UsuarioRepository.ResultadoRegistro.NO_PERMITIDO -> "Solo el dueño puede crear usuarios"
+                        }
+                    },
+                    onEliminarUsuario = { usuario ->
+                        scope.launch {
+                            if (usuarios.eliminarUsuario(sesion, usuario.idUsuario)) {
+                                Toast.makeText(context, "Usuario ${usuario.nombre} eliminado", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    onCerrarSesion = onCerrarSesion
                 )
             }
         }

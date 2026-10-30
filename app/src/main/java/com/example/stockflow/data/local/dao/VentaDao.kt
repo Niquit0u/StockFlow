@@ -21,7 +21,7 @@ interface VentaDao {
     // Una fila por producto vendido; el repositorio las agrupa por venta
     @Query(
         """
-        SELECT ventas.idVenta, ventas.fechaHora, ventas.montoTotal,
+        SELECT ventas.idVenta, ventas.fechaHora, ventas.montoTotal, ventas.vendedor,
                productos.nombre AS nombreProducto, detalle_ventas.cantidad, detalle_ventas.subtotal
         FROM ventas
         INNER JOIN detalle_ventas ON detalle_ventas.idVenta = ventas.idVenta
