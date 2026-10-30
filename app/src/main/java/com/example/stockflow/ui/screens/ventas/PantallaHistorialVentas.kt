@@ -27,7 +27,7 @@ import java.util.Calendar
 import java.util.Locale
 
 /**
- * Historial de ventas registradas con "Descontar productos".
+ * Historial de ventas registradas desde Escáner con "Vender".
  * Se abre desde el botón de recibo en Inventario; atrás vuelve al inventario.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,7 +64,7 @@ fun PantallaHistorialVentas(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Todavía no hay ventas.\nRegistrá una desde Escáner con \"Descontar productos\".",
+                    text = "Todavía no hay ventas.\nRegistrá una desde Escáner con \"Vender\".",
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

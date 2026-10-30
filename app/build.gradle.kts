@@ -60,9 +60,11 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.6.8")
 
     // Cámara (CameraX)
-    implementation("androidx.camera:camera-camera2:1.3.4")
-    implementation("androidx.camera:camera-lifecycle:1.3.4")
-    implementation("androidx.camera:camera-view:1.3.4")
+    implementation("androidx.camera:camera-camera2:1.4.2")
+    implementation("androidx.camera:camera-lifecycle:1.4.2")
+    implementation("androidx.camera:camera-view:1.4.2")
+    // Une CameraX con ML Kit y entrega la posición de cada código en coordenadas de la pantalla
+    implementation("androidx.camera:camera-mlkit-vision:1.4.2")
 
     // Escáner de Códigos de Barras (Google ML Kit)
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
