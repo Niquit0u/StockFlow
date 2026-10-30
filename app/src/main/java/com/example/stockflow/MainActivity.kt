@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.stockflow.data.local.StockFlowDatabase
 import com.example.stockflow.data.repository.DispositivoRepository
 import com.example.stockflow.data.repository.InventarioRepository
+import com.example.stockflow.data.repository.SesionRepository
 import com.example.stockflow.data.repository.UsuarioRepository
 import com.example.stockflow.data.repository.VentaRepository
 import com.example.stockflow.ui.screens.ventas.PantallaHistorialVentas
@@ -35,6 +36,7 @@ import kotlinx.coroutines.launch
 import androidx.camera.core.ExperimentalGetImage
 import androidx.annotation.OptIn
 import androidx.compose.runtime.saveable.rememberSaveable
+import com.example.stockflow.ui.componentes.CentrarCamposAlEscribir
 import com.example.stockflow.ui.screens.login.PantallaLogin
 
 class MainActivity : ComponentActivity() {
@@ -46,54 +48,69 @@ class MainActivity : ComponentActivity() {
         val ventas = VentaRepository(database.ventaDao())
         val usuarios = UsuarioRepository(database.usuarioDao())
         val dispositivos = DispositivoRepository(database.dispositivoDao())
+        val sesionGuardada = SesionRepository(this, usuarios)
 
         lifecycleScope.launch { dispositivos.registrarEsteDispositivo(applicationContext) }
 
         setContent {
             MaterialTheme {
-                // Usuario que inició sesión (null = mostrar login). Se conserva al girar el teléfono
-                var sesion by rememberSaveable(stateSaver = GuardadoSesion) { mutableStateOf<SesionUsuario?>(null) }
-                // null mientras se consulta; false = el teléfono no tiene cuentas y se puede crear la del dueño
-                var hayUsuarios by remember { mutableStateOf<Boolean?>(null) }
+                // Al tocar un campo de texto la pantalla se desplaza para dejarlo centrado
+                CentrarCamposAlEscribir {
+                    // Usuario que inició sesión (null = mostrar login). Se conserva al girar el teléfono
+                    var sesion by rememberSaveable(stateSaver = GuardadoSesion) { mutableStateOf<SesionUsuario?>(null) }
+                    // null mientras se consulta; false = el teléfono no tiene cuentas y se puede crear la del dueño
+                    var hayUsuarios by remember { mutableStateOf<Boolean?>(null) }
 
-                LaunchedEffect(sesion) { if (sesion == null) hayUsuarios = usuarios.hayUsuarios() }
+                    // Inicia o cierra sesión y lo recuerda para la próxima vez que se abra la app
+                    fun cambiarSesion(nueva: SesionUsuario?) {
+                        if (nueva != null) sesionGuardada.guardar(nueva) else sesionGuardada.borrar()
+                        sesion = nueva
+                    }
 
-                val sesionActual = sesion
-                when {
-                    sesionActual != null -> AplicacionInteractivaStockFlow(
-                        sesion = sesionActual,
-                        inventario = inventario,
-                        ventas = ventas,
-                        usuarios = usuarios,
-                        onCerrarSesion = { sesion = null }
-                    )
+                    LaunchedEffect(sesion) {
+                        if (sesion != null) return@LaunchedEffect
+                        // Al abrir la app: si había una sesión guardada se entra directo, sin pasar por el login
+                        val restaurada = sesionGuardada.restaurar()
+                        if (restaurada != null) sesion = restaurada else hayUsuarios = usuarios.hayUsuarios()
+                    }
 
-                    // Consultando la base: pantalla vacía por un instante
-                    hayUsuarios == null -> Surface(modifier = Modifier.fillMaxSize()) {}
+                    val sesionActual = sesion
+                    when {
+                        sesionActual != null -> AplicacionInteractivaStockFlow(
+                            sesion = sesionActual,
+                            inventario = inventario,
+                            ventas = ventas,
+                            usuarios = usuarios,
+                            onCerrarSesion = { cambiarSesion(null) }
+                        )
 
-                    else -> PantallaLogin(
-                        permitirCrearCuenta = hayUsuarios == false,
-                        onIniciarSesion = { usuarioOEmail, contrasena ->
-                            val encontrada = usuarios.validar(usuarioOEmail, contrasena)
-                            if (encontrada != null) sesion = encontrada
-                            encontrada != null
-                        },
-                        onCrearCuenta = { nombre, email, contrasena ->
-                            when (usuarios.registrarDueno(nombre, email, contrasena)) {
-                                UsuarioRepository.ResultadoRegistro.CREADO -> {
-                                    // La cuenta del dueño entra directamente
-                                    sesion = usuarios.validar(nombre, contrasena)
-                                    null
-                                }
-                                UsuarioRepository.ResultadoRegistro.NOMBRE_EN_USO -> "Ese nombre de usuario ya existe"
-                                UsuarioRepository.ResultadoRegistro.EMAIL_EN_USO -> "Ya hay una cuenta con ese email"
-                                UsuarioRepository.ResultadoRegistro.NO_PERMITIDO -> {
-                                    hayUsuarios = true
-                                    "Ya existe la cuenta del dueño. Pedile un usuario."
+                        // Consultando la base: pantalla vacía por un instante
+                        hayUsuarios == null -> Surface(modifier = Modifier.fillMaxSize()) {}
+
+                        else -> PantallaLogin(
+                            permitirCrearCuenta = hayUsuarios == false,
+                            onIniciarSesion = { usuarioOEmail, contrasena ->
+                                val encontrada = usuarios.validar(usuarioOEmail, contrasena)
+                                if (encontrada != null) cambiarSesion(encontrada)
+                                encontrada != null
+                            },
+                            onCrearCuenta = { nombre, email, contrasena ->
+                                when (usuarios.registrarDueno(nombre, email, contrasena)) {
+                                    UsuarioRepository.ResultadoRegistro.CREADO -> {
+                                        // La cuenta del dueño entra directamente
+                                        cambiarSesion(usuarios.validar(nombre, contrasena))
+                                        null
+                                    }
+                                    UsuarioRepository.ResultadoRegistro.NOMBRE_EN_USO -> "Ese nombre de usuario ya existe"
+                                    UsuarioRepository.ResultadoRegistro.EMAIL_EN_USO -> "Ya hay una cuenta con ese email"
+                                    UsuarioRepository.ResultadoRegistro.NO_PERMITIDO -> {
+                                        hayUsuarios = true
+                                        "Ya existe la cuenta del dueño. Pedile un usuario."
+                                    }
                                 }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }

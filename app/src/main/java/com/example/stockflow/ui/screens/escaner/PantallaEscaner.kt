@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.example.stockflow.ItemDescuento
 import com.example.stockflow.Producto
 import com.example.stockflow.formatearPrecio
+import com.example.stockflow.ui.componentes.visibleAlEscribir
 
 @ExperimentalMaterial3Api
 @Composable
@@ -303,7 +304,8 @@ private fun DialogoCantidad(
                         }
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true
+                    singleLine = true,
+                    modifier = Modifier.visibleAlEscribir()
                 )
             }
         },

@@ -51,6 +51,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import com.example.stockflow.ui.componentes.visibleAlEscribir
 
 /**
  * Pantalla de inicio de sesión, con la opción de crear una cuenta nueva.
@@ -178,7 +179,7 @@ fun PantallaLogin(
                 },
                 singleLine = true,
                 enabled = !cargando,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().visibleAlEscribir(),
                 shape = RoundedCornerShape(12.dp),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = if (modoCrearCuenta) KeyboardType.Text else KeyboardType.Email,
@@ -204,7 +205,7 @@ fun PantallaLogin(
                     },
                     singleLine = true,
                     enabled = !cargando,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().visibleAlEscribir(),
                     shape = RoundedCornerShape(12.dp),
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Email,
@@ -337,7 +338,7 @@ private fun CampoContrasena(
         enabled = habilitado,
         isError = esError,
         visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().visibleAlEscribir(),
         shape = RoundedCornerShape(12.dp),
         keyboardOptions = KeyboardOptions(
             keyboardType = KeyboardType.Password,

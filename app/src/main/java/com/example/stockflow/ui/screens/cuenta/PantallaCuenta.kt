@@ -21,6 +21,7 @@ import com.example.stockflow.Rol
 import com.example.stockflow.SesionUsuario
 import com.example.stockflow.UsuarioItem
 import kotlinx.coroutines.launch
+import com.example.stockflow.ui.componentes.visibleAlEscribir
 
 /**
  * Pestaña "Cuenta": quién inició sesión y el botón para cerrarla.
@@ -222,7 +223,8 @@ private fun DialogoNuevoUsuario(
                     onValueChange = { nombre = it; error = null },
                     label = { Text("Nombre de usuario") },
                     singleLine = true,
-                    enabled = !guardando
+                    enabled = !guardando,
+                    modifier = Modifier.visibleAlEscribir()
                 )
                 OutlinedTextField(
                     value = contrasena,
@@ -230,7 +232,8 @@ private fun DialogoNuevoUsuario(
                     label = { Text("Contraseña") },
                     singleLine = true,
                     enabled = !guardando,
-                    visualTransformation = PasswordVisualTransformation()
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.visibleAlEscribir()
                 )
                 OutlinedTextField(
                     value = repetir,
@@ -238,7 +241,8 @@ private fun DialogoNuevoUsuario(
                     label = { Text("Repetir contraseña") },
                     singleLine = true,
                     enabled = !guardando,
-                    visualTransformation = PasswordVisualTransformation()
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.visibleAlEscribir()
                 )
 
                 Text("Permisos", fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 8.dp))

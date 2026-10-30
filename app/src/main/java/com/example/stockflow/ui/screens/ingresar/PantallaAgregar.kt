@@ -7,7 +7,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -16,6 +23,7 @@ import com.example.stockflow.ui.componentes.CampoCantidad
 import com.example.stockflow.ui.componentes.CampoFecha
 import com.example.stockflow.ui.componentes.esFechaValida
 import com.example.stockflow.ui.screens.escaner.EscanerPantallaCompleta
+import com.example.stockflow.ui.componentes.visibleAlEscribir
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,7 +39,21 @@ fun PantallaAgregar(
     var fechaVencimiento by remember { mutableStateOf("") }
     var precio by remember { mutableStateOf("") }
     var errorPrecio by remember { mutableStateOf(false) }
-    var mensajeExito by remember { mutableStateOf(false) }
+    // Resumen del último lote ingresado ("10 u. de Leche, vence 12/03/2027"); null = todavía no hubo ingresos
+    var ultimoIngreso by remember { mutableStateOf<String?>(null) }
+    // Cambia en cada ingreso para volver a bajar hasta el mensaje aunque el texto se repita
+    var cantidadIngresos by remember { mutableIntStateOf(0) }
+    val scrollState = rememberScrollState()
+    val focusManager = LocalFocusManager.current
+
+    // Después de confirmar: baja hasta el final para que se vea el mensaje de ingreso.
+    // Se sigue el tamaño del contenido un momento porque cambia mientras se cierra el teclado.
+    LaunchedEffect(cantidadIngresos) {
+        if (cantidadIngresos == 0) return@LaunchedEffect
+        withTimeoutOrNull(800) {
+            snapshotFlow { scrollState.maxValue }.collect { scrollState.animateScrollTo(it) }
+        }
+    }
     var mostrarEscaner by remember { mutableStateOf(false) }
 
     var expandidoCategoria by remember { mutableStateOf(false) }
@@ -80,8 +102,10 @@ fun PantallaAgregar(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                // Reserva el lugar del teclado: así no tapa los campos de abajo
+                .imePadding()
                 .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
@@ -90,34 +114,37 @@ fun PantallaAgregar(
                 fontWeight = FontWeight.SemiBold
             )
 
-            Button(
-                onClick = { mostrarEscaner = true },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text("📷 Escanear Código de Barras")
+            // El texto de ayuda solo se agrega cuando hay algo que decir: si se pasa vacío,
+            // el campo igual reserva su lugar y queda más separado que los demás
+            val ayudaCodigo = when {
+                productoIdentificado != null -> "✅ Producto identificado: ${productoIdentificado.nombreProducto}"
+                codigoBarra.isNotBlank() -> "Producto no identificado: ingresá sus datos y precio"
+                else -> null
             }
-
             OutlinedTextField(
                 value = codigoBarra,
                 onValueChange = { codigoBarra = it },
                 label = { Text("Código de Barras (EAN/QR)") },
-                supportingText = {
-                    when {
-                        productoIdentificado != null ->
-                            Text("✅ Producto identificado: ${productoIdentificado.nombreProducto}")
-                        codigoBarra.isNotBlank() ->
-                            Text("Producto no identificado: ingresá sus datos y precio")
+                // Botón para escanear con la cámara, dentro del mismo campo
+                trailingIcon = {
+                    IconButton(onClick = { mostrarEscaner = true }) {
+                        Icon(
+                            imageVector = Icons.Default.PhotoCamera,
+                            contentDescription = "Escanear código de barras",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 },
-                modifier = Modifier.fillMaxWidth()
+                singleLine = true,
+                supportingText = ayudaCodigo?.let { texto -> { Text(texto) } },
+                modifier = Modifier.fillMaxWidth().visibleAlEscribir()
             )
 
             OutlinedTextField(
                 value = nombre,
                 onValueChange = { nombre = it },
                 label = { Text("Nombre del Producto") },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().visibleAlEscribir()
             )
 
             ExposedDropdownMenuBox(
@@ -132,7 +159,7 @@ fun PantallaAgregar(
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandidoCategoria) },
                     modifier = Modifier
                         .menuAnchor()
-                        .fillMaxWidth()
+                        .fillMaxWidth().visibleAlEscribir()
                 )
 
                 ExposedDropdownMenu(
@@ -161,12 +188,14 @@ fun PantallaAgregar(
                     },
                     label = { Text("Precio de Venta ($)") },
                     isError = errorPrecio,
-                    supportingText = {
-                        if (errorPrecio) Text("Ingresá un precio válido mayor a 0")
+                    supportingText = if (errorPrecio) {
+                        { Text("Ingresá un precio válido mayor a 0") }
+                    } else {
+                        null
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().visibleAlEscribir()
                 )
             }
 
@@ -213,7 +242,10 @@ fun PantallaAgregar(
                             precio = productoIdentificado?.precio ?: precioIngresado
                         )
                         onAgregarLote(nuevoLote)
-                        mensajeExito = true
+                        ultimoIngreso = "$cantInt u. de $nombre ($categoriaSeleccionada), vence $fechaVencimiento"
+                        cantidadIngresos++
+                        // Cierra el teclado para que el mensaje quede a la vista
+                        focusManager.clearFocus()
 
                         // Limpiamos los campos
                         nombre = ""
@@ -229,13 +261,37 @@ fun PantallaAgregar(
                 Text("Confirmar Ingreso de Lote", fontSize = 16.sp)
             }
 
-            if (mensajeExito) {
-                Text(
-                    text = "✅ ¡Lote registrado con éxito en la categoría '$categoriaSeleccionada'!",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+            ultimoIngreso?.let { resumen ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Column(modifier = Modifier.padding(start = 12.dp)) {
+                            Text(
+                                text = "Stock ingresado",
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                text = resumen,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
             }
         }
     }
