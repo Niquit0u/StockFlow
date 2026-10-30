@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -39,7 +40,9 @@ fun PantallaAlertas(
     lotes: List<LoteItem>,
     busquedaInicial: String = "", // Texto a buscar al llegar desde el escáner
     // Guarda los cambios hechos a un lote con el lápiz
-    onEditarLote: (CambiosLote) -> Unit = {}
+    onEditarLote: (CambiosLote) -> Unit = {},
+    // Abre el historial de ventas (botón de recibo en la barra superior)
+    onAbrirHistorial: () -> Unit = {}
 ) {
 
     // Lote abierto en el diálogo de edición (lápiz)
@@ -316,6 +319,23 @@ fun PantallaAlertas(
                 },
 
                 actions = {
+
+                    // Historial de ventas (se oculta mientras se busca, para dejar lugar al buscador)
+                    if (!mostrarBusqueda) {
+
+                        IconButton(
+                            onClick = onAbrirHistorial
+                        ) {
+
+                            Icon(
+                                imageVector =
+                                    Icons.AutoMirrored.Filled.ReceiptLong,
+
+                                contentDescription =
+                                    "Historial de ventas"
+                            )
+                        }
+                    }
 
                     /*
                      * LA LUPA AHORA APARECE TAMBIÉN

@@ -22,6 +22,8 @@ import com.example.stockflow.data.local.StockFlowDatabase
 import com.example.stockflow.data.repository.DispositivoRepository
 import com.example.stockflow.data.repository.InventarioRepository
 import com.example.stockflow.data.repository.UsuarioRepository
+import com.example.stockflow.data.repository.VentaRepository
+import com.example.stockflow.ui.screens.ventas.PantallaHistorialVentas
 import androidx.lifecycle.lifecycleScope
 import com.example.stockflow.ui.screens.escaner.PantallaEscaner
 import kotlinx.coroutines.launch
@@ -39,6 +41,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val database = StockFlowDatabase.getDatabase(this)
         val inventario = InventarioRepository(database)
+        val ventas = VentaRepository(database.ventaDao())
         val usuarios = UsuarioRepository(database.usuarioDao())
         val dispositivos = DispositivoRepository(database.dispositivoDao())
 
@@ -51,7 +54,7 @@ class MainActivity : ComponentActivity() {
 
                 if (isLoggedIn) {
                     // Muestra el sistema principal de StockFlow
-                    AplicacionInteractivaStockFlow(inventario)
+                    AplicacionInteractivaStockFlow(inventario, ventas)
                 } else {
                     PantallaLogin(
                         onIniciarSesion = { usuarioOEmail, contrasena ->
@@ -80,13 +83,17 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalGetImage::class, ExperimentalMaterial3Api::class, ExperimentalMaterial3Api::class)
 @Composable
-fun AplicacionInteractivaStockFlow(inventario: InventarioRepository) {
+fun AplicacionInteractivaStockFlow(inventario: InventarioRepository, ventas: VentaRepository) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val listaLotes by remember(inventario) { inventario.observarLotes() }.collectAsState(initial = emptyList())
 
     // Estado de la pestaña activa (0: Inventario, 1: Escáner, 2: Agregar)
     var pestañaSeleccionada by remember { mutableIntStateOf(0) }
+
+    // Historial de ventas abierto dentro de la pestaña Inventario
+    var mostrarHistorialVentas by remember { mutableStateOf(false) }
+    val historialVentas by remember(ventas) { ventas.observarHistorial() }.collectAsState(initial = emptyList())
 
     // Texto que el escáner manda a buscar en la pantalla de Inventario (opción "Buscar")
     var busquedaInventario by remember { mutableStateOf("") }
@@ -107,6 +114,7 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository) {
 
     fun cambiarPestaña(pestaña: Int) {
         busquedaInventario = ""
+        mostrarHistorialVentas = false
         pestañaSeleccionada = pestaña
     }
 
@@ -146,7 +154,13 @@ fun AplicacionInteractivaStockFlow(inventario: InventarioRepository) {
                 .consumeWindowInsets(padding)
         ) {
             when (pestañaSeleccionada) {
-                0 -> PantallaAlertas(
+                0 -> if (mostrarHistorialVentas) {
+                    PantallaHistorialVentas(
+                        ventas = historialVentas,
+                        onVolver = { mostrarHistorialVentas = false }
+                    )
+                } else PantallaAlertas(
+                    onAbrirHistorial = { mostrarHistorialVentas = true },
                     lotes = listaLotes,
                     busquedaInicial = busquedaInventario,
                     onEditarLote = { cambios ->

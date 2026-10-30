@@ -51,6 +51,20 @@ data class CambiosLote(
     val fechaVencimiento: String // dd/MM/yyyy
 )
 
+// Venta registrada, para el historial de ventas
+data class VentaItem(
+    val idVenta: Int,
+    val fechaHora: Long, // epoch millis
+    val montoTotal: Double,
+    val productos: List<DetalleVentaItem>
+)
+
+data class DetalleVentaItem(
+    val nombreProducto: String,
+    val cantidad: Int,
+    val subtotal: Double
+)
+
 /** Formatea un importe como "$1.234,50" según el idioma del teléfono. */
 fun formatearPrecio(valor: Double): String {
     val formato = NumberFormat.getNumberInstance(Locale.getDefault()).apply {
