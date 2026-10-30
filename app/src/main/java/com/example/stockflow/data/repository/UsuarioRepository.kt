@@ -9,15 +9,35 @@ import javax.crypto.spec.PBEKeySpec
 
 class UsuarioRepository(private val usuarioDao: UsuarioDao) {
 
-    /** @return false si ya existe un usuario con ese nombre. */
-    suspend fun registrar(nombre: String, clave: String, rol: String): Boolean {
-        val usuario = UsuarioEntity(nombreUsuario = nombre.trim(), contrasena = hashear(clave), rol = rol)
-        return usuarioDao.insertarUsuario(usuario) != -1L
+    enum class ResultadoRegistro { CREADO, NOMBRE_EN_USO, EMAIL_EN_USO }
+
+    /**
+     * Crea una cuenta nueva. La primera cuenta del teléfono queda como dueño; las siguientes, como cliente.
+     */
+    suspend fun registrar(nombre: String, email: String, clave: String): ResultadoRegistro {
+        val nombreLimpio = nombre.trim()
+        val emailLimpio = email.trim().lowercase()
+
+        if (usuarioDao.buscarUsuario(nombreLimpio) != null) return ResultadoRegistro.NOMBRE_EN_USO
+        if (usuarioDao.buscarPorEmail(emailLimpio) != null) return ResultadoRegistro.EMAIL_EN_USO
+
+        val rol = if (usuarioDao.contar() == 0) UsuarioEntity.ROL_DUENO else UsuarioEntity.ROL_CLIENTE
+        val usuario = UsuarioEntity(
+            nombreUsuario = nombreLimpio,
+            email = emailLimpio,
+            contrasena = hashear(clave),
+            rol = rol
+        )
+        // Por si otra cuenta con el mismo nombre/email se creó justo entre la búsqueda y el insert
+        return if (usuarioDao.insertarUsuario(usuario) != -1L) ResultadoRegistro.CREADO else ResultadoRegistro.NOMBRE_EN_USO
     }
 
-    /** @return el usuario si nombre y contraseña coinciden, null si no. */
-    suspend fun validar(nombre: String, clave: String): UsuarioEntity? {
-        val usuario = usuarioDao.buscarUsuario(nombre.trim()) ?: return null
+    /** @param usuarioOEmail el nombre de usuario o el email. @return el usuario si la contraseña coincide. */
+    suspend fun validar(usuarioOEmail: String, clave: String): UsuarioEntity? {
+        val texto = usuarioOEmail.trim()
+        val usuario = usuarioDao.buscarUsuario(texto)
+            ?: usuarioDao.buscarPorEmail(texto.lowercase())
+            ?: return null
         return usuario.takeIf { verificar(clave, it.contrasena) }
     }
 
