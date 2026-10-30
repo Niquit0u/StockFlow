@@ -121,18 +121,18 @@ fun PantallaAgregar(
                 Text("📷 Escanear Código de Barras")
             }
 
+            // El texto de ayuda solo se agrega cuando hay algo que decir: si se pasa vacío,
+            // el campo igual reserva su lugar y queda más separado que los demás
+            val ayudaCodigo = when {
+                productoIdentificado != null -> "✅ Producto identificado: ${productoIdentificado.nombreProducto}"
+                codigoBarra.isNotBlank() -> "Producto no identificado: ingresá sus datos y precio"
+                else -> null
+            }
             OutlinedTextField(
                 value = codigoBarra,
                 onValueChange = { codigoBarra = it },
                 label = { Text("Código de Barras (EAN/QR)") },
-                supportingText = {
-                    when {
-                        productoIdentificado != null ->
-                            Text("✅ Producto identificado: ${productoIdentificado.nombreProducto}")
-                        codigoBarra.isNotBlank() ->
-                            Text("Producto no identificado: ingresá sus datos y precio")
-                    }
-                },
+                supportingText = ayudaCodigo?.let { texto -> { Text(texto) } },
                 modifier = Modifier.fillMaxWidth().visibleAlEscribir()
             )
 
@@ -184,8 +184,10 @@ fun PantallaAgregar(
                     },
                     label = { Text("Precio de Venta ($)") },
                     isError = errorPrecio,
-                    supportingText = {
-                        if (errorPrecio) Text("Ingresá un precio válido mayor a 0")
+                    supportingText = if (errorPrecio) {
+                        { Text("Ingresá un precio válido mayor a 0") }
+                    } else {
+                        null
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
