@@ -53,6 +53,12 @@ class UsuarioRepository(private val usuarioDao: UsuarioDao) {
         return true
     }
 
+    /** Sesión del usuario con ese id (para restaurar el inicio de sesión guardado), o null si ya no existe. */
+    suspend fun sesionPorId(idUsuario: Int): SesionUsuario? {
+        val usuario = usuarioDao.buscarPorId(idUsuario) ?: return null
+        return SesionUsuario(usuario.id, usuario.nombreUsuario, Rol.desdeClave(usuario.rol))
+    }
+
     /** @param usuarioOEmail el nombre de usuario o el email. @return la sesión si la contraseña coincide. */
     suspend fun validar(usuarioOEmail: String, clave: String): SesionUsuario? {
         val texto = usuarioOEmail.trim()

@@ -46,7 +46,7 @@ fun CampoCantidad(
         supportingText = textoAyuda,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         singleLine = true,
-        modifier = modifier
+        modifier = modifier.visibleAlEscribir()
     )
 }
 
@@ -84,7 +84,7 @@ fun CampoFecha(
                 Icon(Icons.Default.DateRange, contentDescription = "Elegir fecha en el calendario")
             }
         },
-        modifier = modifier
+        modifier = modifier.visibleAlEscribir()
     )
 
     if (mostrarCalendario) {

@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -25,6 +26,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,6 +38,7 @@ import com.example.stockflow.ui.componentes.CampoFecha
 import com.example.stockflow.ui.componentes.esFechaValida
 import java.text.SimpleDateFormat
 import java.util.Locale
+import com.example.stockflow.ui.componentes.visibleAlEscribir
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,6 +66,28 @@ fun PantallaAlertas(
 
     var mostrarBusqueda by remember {
         mutableStateOf(busquedaInicial.isNotBlank())
+    }
+
+    // Al tocar la lupa el buscador recibe el foco y se abre el teclado.
+    // No pasa cuando se llega desde el escáner con una búsqueda ya cargada.
+    var enfocarBusqueda by remember {
+        mutableStateOf(false)
+    }
+    val focoBusqueda = remember { FocusRequester() }
+    val teclado = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(mostrarBusqueda, enfocarBusqueda) {
+        if (mostrarBusqueda && enfocarBusqueda) {
+            focoBusqueda.requestFocus()
+            teclado?.show()
+            enfocarBusqueda = false
+        }
+    }
+
+    fun cerrarBusqueda() {
+        mostrarBusqueda = false
+        textoBusqueda = ""
+        teclado?.hide()
     }
 
     var ordenSeleccionado by remember {
@@ -252,7 +280,7 @@ fun PantallaAlertas(
 
                     if (mostrarBusqueda) {
 
-                        OutlinedTextField(
+                        TextField(
                             value = textoBusqueda,
 
                             onValueChange = {
@@ -260,15 +288,51 @@ fun PantallaAlertas(
                             },
 
                             modifier = Modifier
-                                .fillMaxWidth(),
+                                .fillMaxWidth()
+                                .padding(end = 8.dp)
+                                .focusRequester(focoBusqueda)
+                                .visibleAlEscribir(),
 
                             placeholder = {
-                                Text(
-                                    "Buscar producto..."
+                                Text("Buscar producto")
+                            },
+
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
                                 )
                             },
 
-                            singleLine = true
+                            // Borra lo escrito sin cerrar el buscador
+                            trailingIcon = {
+                                if (textoBusqueda.isNotEmpty()) {
+                                    IconButton(onClick = { textoBusqueda = "" }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Borrar búsqueda"
+                                        )
+                                    }
+                                }
+                            },
+
+                            singleLine = true,
+
+                            shape = RoundedCornerShape(50),
+
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                // Sin la línea inferior: la forma de píldora ya marca el campo
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            ),
+
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+
+                            // "Buscar" en el teclado lo cierra para ver los resultados
+                            keyboardActions = KeyboardActions(onSearch = { teclado?.hide() })
                         )
 
                     } else {
@@ -291,7 +355,17 @@ fun PantallaAlertas(
 
                 navigationIcon = {
 
-                    if (
+                    if (mostrarBusqueda) {
+
+                        IconButton(onClick = ::cerrarBusqueda) {
+
+                            Icon(
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Cerrar búsqueda"
+                            )
+                        }
+
+                    } else if (
                         categoriaSeleccionada != null
                     ) {
 
@@ -337,38 +411,30 @@ fun PantallaAlertas(
                         }
                     }
 
-                    /*
-                     * LA LUPA AHORA APARECE TAMBIÉN
-                     * EN LA PANTALLA PRINCIPAL.
-                     */
-                    IconButton(
+                    // Lupa: botón redondo con fondo para que se distinga de los otros íconos
+                    if (!mostrarBusqueda) {
 
-                        onClick = {
+                        FilledTonalIconButton(
 
-                            mostrarBusqueda =
-                                !mostrarBusqueda
+                            onClick = {
+                                mostrarBusqueda = true
+                                enfocarBusqueda = true
+                            },
 
-                            if (!mostrarBusqueda) {
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
 
-                                textoBusqueda = ""
-                            }
+                            modifier = Modifier.padding(end = 4.dp)
+
+                        ) {
+
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Buscar producto"
+                            )
                         }
-
-                    ) {
-
-                        Icon(
-                            imageVector =
-                                if (mostrarBusqueda)
-                                    Icons.Default.Close
-                                else
-                                    Icons.Default.Search,
-
-                            contentDescription =
-                                if (mostrarBusqueda)
-                                    "Cerrar búsqueda"
-                                else
-                                    "Buscar producto"
-                        )
                     }
                 },
 
@@ -1413,7 +1479,8 @@ fun DialogoEditarLote(
                     onValueChange = { nombre = it },
                     label = { Text("Nombre del producto") },
                     isError = nombre.isBlank(),
-                    singleLine = true
+                    singleLine = true,
+                    modifier = Modifier.visibleAlEscribir()
                 )
 
                 OutlinedTextField(
@@ -1423,7 +1490,8 @@ fun DialogoEditarLote(
                     supportingText = {
                         if (codigoBarra.isBlank()) Text("Vacío = producto sin código")
                     },
-                    singleLine = true
+                    singleLine = true,
+                    modifier = Modifier.visibleAlEscribir()
                 )
 
                 CampoCantidad(
@@ -1438,7 +1506,8 @@ fun DialogoEditarLote(
                     label = { Text("Precio de venta ($)") },
                     isError = !precioValido,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true
+                    singleLine = true,
+                    modifier = Modifier.visibleAlEscribir()
                 )
 
                 CampoFecha(
