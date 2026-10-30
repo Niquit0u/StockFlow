@@ -3,16 +3,14 @@ package com.example.stockflow.ui.screens.escaner
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.SystemClock
-import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.OptIn
 import androidx.camera.core.CameraSelector
-import androidx.camera.core.ExperimentalGetImage
-import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.mlkit.vision.MlKitAnalyzer
+import androidx.camera.view.CameraController
+import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -23,8 +21,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -35,12 +42,12 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.barcode.common.Barcode
 import java.util.concurrent.Executors
 
 /**
  * Evita lecturas repetidas: la cámara detecta el mismo código en muchos cuadros seguidos.
- * Las lecturas llegan por el hilo principal (listeners de ML Kit), así que no hace falta sincronizar.
+ * Las lecturas llegan por el hilo principal (MlKitAnalyzer entrega en el executor principal), así que no hace falta sincronizar.
  */
 private class ControlLecturas {
     private var ultimoCodigo: String? = null
@@ -67,18 +74,22 @@ private class ControlLecturas {
  * Vista previa de la cámara trasera que detecta códigos de barra con ML Kit.
  * Pide el permiso de cámara si no está concedido. Mientras [activo] sea false ignora lo que detecte
  * (por ejemplo, mientras hay un diálogo abierto).
+ *
+ * @param areaDeLectura si se indica (en píxeles, relativo a este visor), solo se acepta el código cuyo
+ * centro cae dentro de esa zona; así no se lee por error otro código que aparezca en cámara.
  */
-@OptIn(ExperimentalGetImage::class)
 @Composable
 fun VisorCamaraEscaner(
     onCodigoEscaneado: (String) -> Unit,
     modifier: Modifier = Modifier,
-    activo: Boolean = true
+    activo: Boolean = true,
+    areaDeLectura: Rect? = null
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val callbackActual by rememberUpdatedState(onCodigoEscaneado)
     val activoActual by rememberUpdatedState(activo)
+    val areaActual by rememberUpdatedState(areaDeLectura)
     val control = remember { ControlLecturas() }
 
     LaunchedEffect(activo) {
@@ -105,77 +116,50 @@ fun VisorCamaraEscaner(
 
     Box(modifier = modifier.background(Color.Black), contentAlignment = Alignment.Center) {
         if (tienePermiso) {
-            val analisisExecutor = remember { Executors.newSingleThreadExecutor() }
-            val barcodeScanner = remember { BarcodeScanning.getClient() }
-            var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+            val controlador = remember {
+                LifecycleCameraController(context).apply {
+                    cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                }
+            }
 
-            // Libera la cámara al salir de la pantalla (por ejemplo, al cerrar el escáner a pantalla completa)
-            DisposableEffect(Unit) {
+            DisposableEffect(lifecycleOwner) {
+                val analisisExecutor = Executors.newSingleThreadExecutor()
+                val lectorCodigos = BarcodeScanning.getClient()
+
+                // COORDINATE_SYSTEM_VIEW_REFERENCED: cada código llega con su posición en píxeles de la vista
+                // (ya convertida desde la imagen de la cámara), comparable directamente con areaDeLectura
+                controlador.setImageAnalysisAnalyzer(
+                    analisisExecutor,
+                    MlKitAnalyzer(
+                        listOf(lectorCodigos),
+                        CameraController.COORDINATE_SYSTEM_VIEW_REFERENCED,
+                        ContextCompat.getMainExecutor(context)
+                    ) { resultado ->
+                        if (!activoActual) return@MlKitAnalyzer
+                        val codigos = resultado.getValue(lectorCodigos) ?: return@MlKitAnalyzer
+                        val valor = elegirCodigo(codigos, areaActual) ?: return@MlKitAnalyzer
+                        if (control.acepta(valor, SystemClock.elapsedRealtime())) {
+                            callbackActual(valor)
+                        }
+                    }
+                )
+                controlador.bindToLifecycle(lifecycleOwner)
+
+                // Libera la cámara al salir de la pantalla (por ejemplo, al cerrar el escáner a pantalla completa)
                 onDispose {
-                    cameraProvider?.unbindAll()
-                    barcodeScanner.close()
+                    controlador.clearImageAnalysisAnalyzer()
+                    controlador.unbind()
+                    lectorCodigos.close()
                     analisisExecutor.shutdown()
                 }
             }
 
             AndroidView(
                 factory = { ctx ->
-                    val previewView = PreviewView(ctx).apply {
+                    PreviewView(ctx).apply {
                         scaleType = PreviewView.ScaleType.FILL_CENTER
+                        controller = controlador
                     }
-                    val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-
-                    cameraProviderFuture.addListener({
-                        val provider = cameraProviderFuture.get()
-                        cameraProvider = provider
-
-                        val preview = Preview.Builder().build().also {
-                            it.setSurfaceProvider(previewView.surfaceProvider)
-                        }
-
-                        val imageAnalysis = ImageAnalysis.Builder()
-                            .setTargetResolution(Size(1280, 720))
-                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                            .build()
-
-                        imageAnalysis.setAnalyzer(analisisExecutor) { imageProxy ->
-                            val mediaImage = imageProxy.image
-                            if (mediaImage != null && activoActual) {
-                                val image = InputImage.fromMediaImage(
-                                    mediaImage,
-                                    imageProxy.imageInfo.rotationDegrees
-                                )
-                                barcodeScanner.process(image)
-                                    .addOnSuccessListener { barcodes ->
-                                        val rawValue = barcodes.firstNotNullOfOrNull { it.rawValue }
-                                        if (rawValue != null && activoActual &&
-                                            control.acepta(rawValue, SystemClock.elapsedRealtime())
-                                        ) {
-                                            callbackActual(rawValue)
-                                        }
-                                    }
-                                    .addOnCompleteListener {
-                                        imageProxy.close()
-                                    }
-                            } else {
-                                imageProxy.close()
-                            }
-                        }
-
-                        try {
-                            provider.unbindAll()
-                            provider.bindToLifecycle(
-                                lifecycleOwner,
-                                CameraSelector.DEFAULT_BACK_CAMERA,
-                                preview,
-                                imageAnalysis
-                            )
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    }, ContextCompat.getMainExecutor(ctx))
-
-                    previewView
                 },
                 modifier = Modifier.fillMaxSize()
             )
@@ -191,12 +175,33 @@ fun VisorCamaraEscaner(
     }
 }
 
+/**
+ * Sin [area]: el primer código con valor. Con [area]: solo los que tienen el centro adentro,
+ * y si hay varios, el más cercano al centro del área.
+ */
+private fun elegirCodigo(codigos: List<Barcode>, area: Rect?): String? {
+    if (area == null) return codigos.firstNotNullOfOrNull { it.rawValue }
+    return codigos
+        .mapNotNull { codigo ->
+            val caja = codigo.boundingBox ?: return@mapNotNull null
+            val valor = codigo.rawValue ?: return@mapNotNull null
+            val centro = Offset(caja.exactCenterX(), caja.exactCenterY())
+            if (area.contains(centro)) valor to (centro - area.center).getDistance() else null
+        }
+        .minByOrNull { it.second }
+        ?.first
+}
+
 /** Escáner a pantalla completa. Se cierra solo al leer un código o con el botón / gesto atrás. */
 @Composable
 fun EscanerPantallaCompleta(
     onCodigoEscaneado: (String) -> Unit,
     onCerrar: () -> Unit
 ) {
+    // Posición del rectángulo guía dentro de la pantalla; solo se leen códigos que caen ahí
+    var areaGuia by remember { mutableStateOf<Rect?>(null) }
+    val radioEsquinas = with(LocalDensity.current) { 16.dp.toPx() }
+
     Dialog(
         onDismissRequest = onCerrar,
         properties = DialogProperties(
@@ -205,29 +210,51 @@ fun EscanerPantallaCompleta(
         )
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
+            // El visor y el rectángulo comparten el mismo contenedor, así sus coordenadas coinciden
             VisorCamaraEscaner(
                 onCodigoEscaneado = onCodigoEscaneado,
+                areaDeLectura = areaGuia,
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Marco guía para centrar el código
+            // Oscurece todo menos el rectángulo, para que se vea dónde hay que apuntar
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            ) {
+                drawRect(Color.Black.copy(alpha = 0.55f))
+                areaGuia?.let { area ->
+                    drawRoundRect(
+                        color = Color.Transparent,
+                        topLeft = area.topLeft,
+                        size = area.size,
+                        cornerRadius = CornerRadius(radioEsquinas),
+                        blendMode = BlendMode.Clear
+                    )
+                }
+            }
+
+            // Marco guía: solo se acepta el código que está adentro
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .fillMaxWidth(0.8f)
                     .height(180.dp)
+                    .onGloballyPositioned { areaGuia = it.boundsInParent() }
                     .border(3.dp, Color.White, RoundedCornerShape(16.dp))
             )
 
             Text(
-                text = "Apunta la cámara al código de barras",
+                text = "Ubicá el código de barras dentro del rectángulo",
                 color = Color.White,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
-                    .padding(bottom = 48.dp)
+                    .padding(start = 24.dp, end = 24.dp, bottom = 48.dp)
                     .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             )

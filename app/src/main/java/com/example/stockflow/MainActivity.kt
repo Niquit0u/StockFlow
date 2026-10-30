@@ -246,7 +246,7 @@ fun AplicacionInteractivaStockFlow(
                                     Toast.LENGTH_SHORT
                                 ).show()
                             } catch (e: IllegalStateException) {
-                                Toast.makeText(context, "No se descontó nada: ${e.message}", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "No se registró la venta: ${e.message}", Toast.LENGTH_LONG).show()
                             }
                         }
                     }

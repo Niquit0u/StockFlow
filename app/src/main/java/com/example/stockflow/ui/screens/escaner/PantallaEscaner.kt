@@ -68,7 +68,7 @@ fun PantallaEscaner(
             TopAppBar(
                 title = {
                     Text(
-                        if (modoDescuento) "Stock Flow - Descontar Productos" else "Stock Flow - Escáner de Código",
+                        if (modoDescuento) "Stock Flow - Vender" else "Stock Flow - Escáner de Código",
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -87,7 +87,7 @@ fun PantallaEscaner(
         ) {
             Text(
                 text = if (modoDescuento) {
-                    "Escaneá cada producto que quieras descontar"
+                    "Escaneá cada producto que quieras vender"
                 } else {
                     "Apunta la cámara al código de barras del producto"
                 },
@@ -126,7 +126,7 @@ fun PantallaEscaner(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("Terminar y descontar (${itemsADescontar.sumOf { it.cantidad }} u.)", fontSize = 16.sp)
+                    Text("Terminar venta (${itemsADescontar.sumOf { it.cantidad }} u.)", fontSize = 16.sp)
                 }
 
                 OutlinedButton(
@@ -134,7 +134,7 @@ fun PantallaEscaner(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("Cancelar descuento")
+                    Text("Cancelar venta")
                 }
             }
         }
@@ -152,7 +152,7 @@ fun PantallaEscaner(
                     productoParaElegir = null
                     modoDescuento = true
                     productoParaCantidad = producto
-                }) { Text("Descontar productos") }
+                }) { Text("Vender") }
             },
             dismissButton = {
                 TextButton(onClick = {
@@ -187,10 +187,10 @@ fun PantallaEscaner(
     if (confirmarDescuento) {
         AlertDialog(
             onDismissRequest = { confirmarDescuento = false },
-            title = { Text("Confirmar descuento") },
+            title = { Text("Confirmar venta") },
             text = {
                 Text(
-                    "Se descontarán ${itemsADescontar.sumOf { it.cantidad }} unidades de " +
+                    "Se venderán ${itemsADescontar.sumOf { it.cantidad }} unidades de " +
                         "${itemsADescontar.size} producto(s).\n" +
                         "Valor total: ${formatearPrecio(itemsADescontar.sumOf { it.subtotal ?: 0.0 })}\n\n" +
                         "Esta acción no se puede deshacer."
@@ -201,7 +201,7 @@ fun PantallaEscaner(
                     onDescontar(itemsADescontar.toList())
                     confirmarDescuento = false
                     salirDelModoDescuento()
-                }) { Text("Descontar") }
+                }) { Text("Vender") }
             },
             dismissButton = {
                 TextButton(onClick = { confirmarDescuento = false }) { Text("Volver") }
@@ -217,7 +217,7 @@ private fun ListaADescontar(
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Productos a descontar", fontWeight = FontWeight.Bold)
+            Text("Productos a vender", fontWeight = FontWeight.Bold)
 
             if (items.isEmpty()) {
                 Text(
@@ -291,11 +291,11 @@ private fun DialogoCantidad(
         title = { Text(producto.nombreProducto) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Disponible para descontar: $disponible u.")
+                Text("Disponible para vender: $disponible u.")
                 OutlinedTextField(
                     value = texto,
                     onValueChange = { nuevo -> texto = nuevo.filter { it.isDigit() } },
-                    label = { Text("Cantidad a descontar") },
+                    label = { Text("Cantidad a vender") },
                     isError = texto.isNotEmpty() && !valida,
                     supportingText = {
                         when {
