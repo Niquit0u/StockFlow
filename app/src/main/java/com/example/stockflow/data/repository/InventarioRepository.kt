@@ -7,6 +7,9 @@ import com.example.stockflow.NOMBRE_SIN_CATEGORIA
 import com.example.stockflow.ItemDescuento
 import com.example.stockflow.LoteItem
 import com.example.stockflow.SesionUsuario
+import com.example.stockflow.TipoEvento
+import com.example.stockflow.formatearPrecio
+import com.example.stockflow.data.local.entity.EventoEntity
 import com.example.stockflow.data.local.StockFlowDatabase
 import com.example.stockflow.data.local.entity.LoteConProducto
 import com.example.stockflow.data.local.entity.LoteEntity
@@ -29,9 +32,12 @@ import java.util.concurrent.TimeUnit
  */
 class InventarioRepository(
     private val database: StockFlowDatabase,
-    // Local de la sesión: solo se ven y modifican sus productos, lotes y ventas
-    private val idLocal: Int
+    // Usuario que está usando la app: queda registrado en el historial de lo que hace
+    private val sesion: SesionUsuario
 ) {
+
+    // Local de la sesión: solo se ven y modifican sus productos, lotes y ventas
+    private val idLocal = sesion.idLocal
 
     private val productoDao = database.productoDao()
     private val loteDao = database.loteDao()
@@ -39,6 +45,27 @@ class InventarioRepository(
     private val categoriaDao = database.categoriaDao()
     private val ventaDao = database.ventaDao()
     private val detalleVentaDao = database.detalleVentaDao()
+    private val eventoDao = database.eventoDao()
+
+    /** Agrega una entrada al historial del local (se llama dentro de la transacción de cada operación). */
+    private suspend fun registrarEnHistorial(
+        tipo: TipoEvento,
+        titulo: String,
+        detalle: List<String> = emptyList(),
+        monto: Double? = null
+    ) {
+        eventoDao.insertar(
+            EventoEntity(
+                idLocal = idLocal,
+                tipo = tipo.name,
+                idUsuario = sesion.idUsuario,
+                usuario = sesion.nombre,
+                titulo = titulo,
+                detalle = detalle.joinToString("\n"),
+                monto = monto
+            )
+        )
+    }
 
     fun observarLotes(): Flow<List<LoteItem>> {
         return loteDao.observarConProducto(idLocal).map { lotes -> lotes.map { it.aLoteItem() } }
@@ -73,17 +100,20 @@ class InventarioRepository(
      * Los lotes que quedan en 0 no se borran (sus movimientos los referencian); dejan de mostrarse.
      * Productos sin precio cargado suman $0 al total.
      *
+     * También queda en el historial, con cada producto vendido.
+     *
      * @return el id de la venta creada.
      * @throws IllegalStateException si un producto no existe o no tiene stock suficiente.
      */
-    suspend fun descontarStock(items: List<ItemDescuento>, vendedor: SesionUsuario): Long = database.withTransaction {
+    suspend fun descontarStock(items: List<ItemDescuento>): Long = database.withTransaction {
+        val total = items.sumOf { it.subtotal ?: 0.0 }
         val idVenta = ventaDao.insertar(
             VentaEntity(
                 fechaHora = System.currentTimeMillis(),
-                montoTotal = items.sumOf { it.subtotal ?: 0.0 },
+                montoTotal = total,
                 idLocal = idLocal,
-                idUsuario = vendedor.idUsuario,
-                vendedor = vendedor.nombre
+                idUsuario = sesion.idUsuario,
+                vendedor = sesion.nombre
             )
         ).toInt()
 
@@ -119,6 +149,15 @@ class InventarioRepository(
             }
         }
 
+        registrarEnHistorial(
+            tipo = TipoEvento.VENTA,
+            titulo = "Venta #$idVenta",
+            detalle = items.map { item ->
+                "${item.nombreProducto} x${item.cantidad}: " + (item.subtotal?.let(::formatearPrecio) ?: "sin precio")
+            },
+            monto = total
+        )
+
         idVenta.toLong()
     }
 
@@ -127,6 +166,7 @@ class InventarioRepository(
      * Nombre, código de barras, precio y categoría son del producto (afectan a todos sus lotes);
      * cantidad y vencimiento son del lote.
      * Si cambia la cantidad se registra un movimiento de ENTRADA o SALIDA por la diferencia.
+     * Lo que haya cambiado queda en el historial ("Precio: $100,00 → $120,00").
      *
      * @throws IllegalArgumentException si los datos no son válidos o el código ya es de otro producto.
      */
@@ -152,15 +192,39 @@ class InventarioRepository(
                 }
             }
 
-            productoDao.actualizar(
-                producto.copy(
-                    nombre = cambios.nombre.trim(),
-                    codigoBarra = codigo,
-                    precioVenta = cambios.precio ?: 0.0,
-                    idCategoria = idCategoriaPorNombre(cambios.categoria)
-                )
+            val productoNuevo = producto.copy(
+                nombre = cambios.nombre.trim(),
+                codigoBarra = codigo,
+                precioVenta = cambios.precio ?: 0.0,
+                idCategoria = idCategoriaPorNombre(cambios.categoria)
             )
+            productoDao.actualizar(productoNuevo)
             loteDao.actualizar(lote.copy(cantidadActual = cambios.cantidad, fechaVencimiento = vencimiento))
+
+            // Historial: solo lo que realmente cambió
+            val categoriaAntes = categoriaDao.obtenerPorId(producto.idCategoria)?.nombre.orEmpty()
+            val categoriaDespues = categoriaDao.obtenerPorId(productoNuevo.idCategoria)?.nombre.orEmpty()
+            val diferencias = buildList {
+                if (producto.nombre != productoNuevo.nombre) add("Nombre: ${producto.nombre} → ${productoNuevo.nombre}")
+                if (producto.codigoBarra != productoNuevo.codigoBarra) {
+                    add("Código: ${producto.codigoBarra ?: "sin código"} → ${productoNuevo.codigoBarra ?: "sin código"}")
+                }
+                if (producto.precioVenta != productoNuevo.precioVenta) {
+                    add("Precio: ${textoPrecio(producto.precioVenta)} → ${textoPrecio(productoNuevo.precioVenta)}")
+                }
+                if (categoriaAntes != categoriaDespues) add("Categoría: $categoriaAntes → $categoriaDespues")
+                if (lote.cantidadActual != cambios.cantidad) add("Cantidad: ${lote.cantidadActual} → ${cambios.cantidad} u.")
+                if (lote.fechaVencimiento != vencimiento) {
+                    add("Vencimiento: ${formatoFecha().format(lote.fechaVencimiento)} → ${formatoFecha().format(vencimiento)}")
+                }
+            }
+            if (diferencias.isNotEmpty()) {
+                registrarEnHistorial(
+                    tipo = TipoEvento.CAMBIO,
+                    titulo = "Cambios en ${productoNuevo.nombre} (lote #${lote.idLote})",
+                    detalle = diferencias
+                )
+            }
 
             val diferencia = cambios.cantidad - lote.cantidadActual
             if (diferencia != 0) {
@@ -215,8 +279,22 @@ class InventarioRepository(
         movimientoDao.insertar(
             MovimientoEntity(tipo = MovimientoEntity.TIPO_ENTRADA, idLote = idLote.toInt(), cantidad = cantidad)
         )
+
+        registrarEnHistorial(
+            tipo = TipoEvento.INGRESO,
+            titulo = "Ingreso de $cantidad u. de $nombre",
+            detalle = buildList {
+                add("Lote #$idLote, vence ${formatoFecha().format(vencimiento)}")
+                if (existente == null) {
+                    add("Producto nuevo en ${categoriaDao.obtenerPorId(idCategoriaPorNombre(categoria))?.nombre ?: categoria}")
+                    add("Precio: ${textoPrecio(precio ?: 0.0)}")
+                }
+            }
+        )
         idLote
     }
+
+    private fun textoPrecio(precio: Double) = if (precio > 0) formatearPrecio(precio) else "sin precio"
 
     private fun LoteConProducto.aLoteItem(): LoteItem {
         val dias = diasHasta(lote.fechaVencimiento)

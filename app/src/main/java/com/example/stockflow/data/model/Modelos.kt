@@ -52,19 +52,22 @@ data class CambiosLote(
     val categoria: String // nombre de una categoría del local
 )
 
-// Venta registrada, para el historial de ventas
-data class VentaItem(
-    val idVenta: Int,
-    val fechaHora: Long, // epoch millis
-    val montoTotal: Double,
-    val vendedor: String, // nombre del usuario que hizo la venta
-    val productos: List<DetalleVentaItem>
-)
+// Tipos de entrada del historial
+enum class TipoEvento(val nombreVisible: String) {
+    VENTA("Venta"),
+    INGRESO("Ingreso de stock"),
+    CAMBIO("Cambio en inventario")
+}
 
-data class DetalleVentaItem(
-    val nombreProducto: String,
-    val cantidad: Int,
-    val subtotal: Double
+// Entrada del historial del local
+data class EventoItem(
+    val idEvento: Int,
+    val tipo: TipoEvento,
+    val fechaHora: Long, // epoch millis
+    val usuario: String, // quién lo hizo
+    val titulo: String,
+    val detalle: List<String>, // líneas de detalle (puede estar vacía)
+    val monto: Double? // solo en ventas
 )
 
 /**

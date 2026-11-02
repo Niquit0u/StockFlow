@@ -13,7 +13,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
@@ -71,7 +71,7 @@ fun PantallaAlertas(
     busquedaInicial: String = "", // Texto a buscar al llegar desde el escáner
     // Guarda los cambios hechos a un lote con el lápiz; null = sin permiso (no se muestra el lápiz)
     onEditarLote: ((CambiosLote) -> Unit)? = null,
-    // Abre el historial de ventas (botón de recibo); null = sin permiso (no se muestra el botón)
+    // Abre el historial (ventas, ingresos y cambios); null = sin permiso (no se muestra el botón)
     onAbrirHistorial: (() -> Unit)? = null,
     // Categorías del local (siempre hay al menos una)
     categorias: List<CategoriaItem> = emptyList(),
@@ -483,7 +483,7 @@ fun PantallaAlertas(
 
                 actions = {
 
-                    // Historial de ventas (se oculta mientras se busca, para dejar lugar al buscador)
+                    // Historial (se oculta mientras se busca, para dejar lugar al buscador)
                     if (!mostrarBusqueda && onAbrirHistorial != null) {
 
                         IconButton(
@@ -492,10 +492,10 @@ fun PantallaAlertas(
 
                             Icon(
                                 imageVector =
-                                    Icons.AutoMirrored.Filled.ReceiptLong,
+                                    Icons.Default.History,
 
                                 contentDescription =
-                                    "Historial de ventas"
+                                    "Historial"
                             )
                         }
                     }
