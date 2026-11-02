@@ -55,6 +55,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.stockflow.ui.theme.StockFlowTheme
 import kotlinx.coroutines.launch
 import com.example.stockflow.ui.componentes.visibleAlEscribir
 
@@ -404,7 +405,7 @@ private const val MINIMO_CONTRASENA = 4
 @Preview(showBackground = true)
 @Composable
 private fun PantallaLoginPreview() {
-    MaterialTheme {
+    StockFlowTheme {
         PantallaLogin(
             onIniciarSesion = { _, _ -> true },
             onCrearCuenta = { _, _, _, _ -> null }

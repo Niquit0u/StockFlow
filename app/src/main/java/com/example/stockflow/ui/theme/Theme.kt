@@ -12,32 +12,67 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = MarinoOscuro,
+    onPrimary = SobreMarinoOscuro,
+    primaryContainer = MarinoSuaveOscuro,
+    onPrimaryContainer = SobreMarinoSuaveOscuro,
+    secondary = FlujoOscuro,
+    onSecondary = SobreFlujoOscuro,
+    secondaryContainer = FlujoSuaveOscuro,
+    onSecondaryContainer = SobreFlujoSuaveOscuro,
+    tertiary = PizarraOscuro,
+    onTertiary = SobrePizarraOscuro,
+    tertiaryContainer = PizarraSuaveOscuro,
+    onTertiaryContainer = SobrePizarraSuaveOscuro,
+    background = FondoOscuro,
+    onBackground = TintaOscura,
+    surface = SuperficieOscura,
+    onSurface = TintaOscura,
+    surfaceVariant = SuperficieVarianteOscura,
+    onSurfaceVariant = TintaSuaveOscura,
+    outline = ContornoOscuro,
+    outlineVariant = ContornoSuaveOscuro,
+    surfaceContainerLowest = SuperficieContenedorMasBajaOscura,
+    surfaceContainerLow = SuperficieContenedorBajaOscura,
+    surfaceContainer = SuperficieContenedorOscura,
+    surfaceContainerHigh = SuperficieContenedorAltaOscura,
+    surfaceContainerHighest = SuperficieContenedorMasAltaOscura
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primary = Marino,
+    onPrimary = SobreMarino,
+    primaryContainer = MarinoSuave,
+    onPrimaryContainer = SobreMarinoSuave,
+    secondary = Flujo,
+    onSecondary = SobreFlujo,
+    secondaryContainer = FlujoSuave,
+    onSecondaryContainer = SobreFlujoSuave,
+    tertiary = Pizarra,
+    onTertiary = SobrePizarra,
+    tertiaryContainer = PizarraSuave,
+    onTertiaryContainer = SobrePizarraSuave,
+    background = Fondo,
+    onBackground = Tinta,
+    surface = Superficie,
+    onSurface = Tinta,
+    surfaceVariant = SuperficieVariante,
+    onSurfaceVariant = TintaSuave,
+    outline = Contorno,
+    outlineVariant = ContornoSuave,
+    surfaceContainerLowest = SuperficieContenedorMasBaja,
+    surfaceContainerLow = SuperficieContenedorBaja,
+    surfaceContainer = SuperficieContenedor,
+    surfaceContainerHigh = SuperficieContenedorAlta,
+    surfaceContainerHighest = SuperficieContenedorMasAlta
 )
 
 @Composable
 fun StockFlowTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    // Color dinámico (Android 12+) toma los colores del fondo de pantalla del teléfono y taparía
+    // los de la marca; queda apagado para que la app se vea igual en todos los teléfonos
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
