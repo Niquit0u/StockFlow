@@ -2,6 +2,7 @@ package com.example.stockflow.ui.screens.login
 
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Storefront
 import android.util.Patterns
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -41,6 +42,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -56,23 +61,23 @@ import com.example.stockflow.ui.componentes.visibleAlEscribir
 /**
  * Pantalla de inicio de sesión, con la opción de crear una cuenta nueva.
  *
- * @param permitirCrearCuenta true solo mientras el teléfono no tenga ninguna cuenta: se crea la del dueño.
- * Después, los usuarios los crea el dueño desde la pestaña Cuenta.
- * @param onIniciarSesion valida usuario (o email) y contraseña; devuelve true si son correctos.
+ * "Crear cuenta" registra un local nuevo con su dueño. Los empleados de un local no se registran acá:
+ * los crea el dueño desde la pestaña Cuenta.
+ * @param onIniciarSesion valida correo y contraseña; devuelve true si son correctos.
  * @param onCrearCuenta crea la cuenta (nombre, email, contraseña); devuelve null si se creó,
  * o el mensaje de error para mostrar (por ejemplo, email ya usado).
  */
 @Composable
 fun PantallaLogin(
-    permitirCrearCuenta: Boolean,
-    onIniciarSesion: suspend (usuarioOEmail: String, contrasena: String) -> Boolean,
-    onCrearCuenta: suspend (nombre: String, email: String, contrasena: String) -> String?
+    onIniciarSesion: suspend (email: String, contrasena: String) -> Boolean,
+    onCrearCuenta: suspend (nombreLocal: String, nombre: String, email: String, contrasena: String) -> String?
 ) {
     // false = iniciar sesión, true = crear cuenta
-    var modoCrearCuentaElegido by rememberSaveable { mutableStateOf(false) }
-    val modoCrearCuenta = modoCrearCuentaElegido && permitirCrearCuenta
+    var modoCrearCuenta by rememberSaveable { mutableStateOf(false) }
 
-    var usuario by rememberSaveable { mutableStateOf("") }
+    var nombreLocal by rememberSaveable { mutableStateOf("") }
+
+    var nombre by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
     var contrasena by remember { mutableStateOf("") }
     var repetirContrasena by remember { mutableStateOf("") }
@@ -83,8 +88,23 @@ fun PantallaLogin(
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
 
+    // Al tocar "Crear cuenta" el primer campo (nombre del local) recibe el foco y se abre el teclado
+    val focoPrimerCampo = remember { FocusRequester() }
+    val teclado = LocalSoftwareKeyboardController.current
+    var enfocarNombre by remember { mutableStateOf(false) }
+
+    LaunchedEffect(modoCrearCuenta, enfocarNombre) {
+        if (modoCrearCuenta && enfocarNombre) {
+            focoPrimerCampo.requestFocus()
+            teclado?.show()
+            enfocarNombre = false
+        }
+    }
+
     fun cambiarModo() {
-        modoCrearCuentaElegido = !modoCrearCuenta
+        // Solo al pasar a "Crear cuenta"; al volver al login no se enfoca nada
+        enfocarNombre = !modoCrearCuenta
+        modoCrearCuenta = !modoCrearCuenta
         mensajeError = null
         contrasena = ""
         repetirContrasena = ""
@@ -92,10 +112,10 @@ fun PantallaLogin(
 
     // Devuelve el error a mostrar, o null si el formulario está completo y es válido
     fun validarFormulario(): String? = when {
-        usuario.isBlank() || contrasena.isBlank() -> "Por favor completa todos los campos"
+        email.isBlank() || contrasena.isBlank() -> "Por favor completa todos los campos"
+        !Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches() -> "Ingresá un correo válido, por ejemplo nombre@mail.com"
         !modoCrearCuenta -> null
-        email.isBlank() || repetirContrasena.isBlank() -> "Por favor completa todos los campos"
-        !Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches() -> "Ingresá un email válido, por ejemplo nombre@mail.com"
+        nombreLocal.isBlank() || nombre.isBlank() || repetirContrasena.isBlank() -> "Por favor completa todos los campos"
         contrasena.length < MINIMO_CONTRASENA -> "La contraseña debe tener al menos $MINIMO_CONTRASENA caracteres"
         contrasena != repetirContrasena -> "Las contraseñas no coinciden"
         else -> null
@@ -112,11 +132,11 @@ fun PantallaLogin(
         scope.launch {
             try {
                 if (modoCrearCuenta) {
-                    onCrearCuenta(usuario.trim(), email.trim(), contrasena)?.let { error ->
+                    onCrearCuenta(nombreLocal.trim(), nombre.trim(), email.trim(), contrasena)?.let { error ->
                         mensajeError = error
                     }
-                } else if (!onIniciarSesion(usuario.trim(), contrasena)) {
-                    mensajeError = "Usuario o contraseña incorrectos"
+                } else if (!onIniciarSesion(email.trim(), contrasena)) {
+                    mensajeError = "Correo o contraseña incorrectos"
                     contrasena = ""
                 }
             } finally {
@@ -152,7 +172,7 @@ fun PantallaLogin(
 
             Text(
                 text = if (modoCrearCuenta) {
-                    "Esta será la cuenta del dueño del comercio"
+                    "Creá tu local y tu cuenta de dueño"
                 } else {
                     "Inicia sesión para continuar"
                 },
@@ -163,17 +183,75 @@ fun PantallaLogin(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Campo Usuario (al iniciar sesión también acepta el email)
+            // Nombre del local y del dueño: solo al crear la cuenta (el nombre no sirve para iniciar sesión)
+            if (modoCrearCuenta) {
+                OutlinedTextField(
+                    value = nombreLocal,
+                    onValueChange = {
+                        nombreLocal = it
+                        mensajeError = null
+                    },
+                    label = { Text("Nombre del local") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Storefront,
+                            contentDescription = null
+                        )
+                    },
+                    singleLine = true,
+                    enabled = !cargando,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focoPrimerCampo)
+                        .visibleAlEscribir(),
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text,
+                        imeAction = ImeAction.Next
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = nombre,
+                    onValueChange = {
+                        nombre = it
+                        mensajeError = null
+                    },
+                    label = { Text("Tu nombre") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null
+                        )
+                    },
+                    singleLine = true,
+                    enabled = !cargando,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .visibleAlEscribir(),
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text,
+                        imeAction = ImeAction.Next
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            // Correo: es único y es lo único con lo que se inicia sesión
             OutlinedTextField(
-                value = usuario,
+                value = email,
                 onValueChange = {
-                    usuario = it
+                    email = it
                     mensajeError = null
                 },
-                label = { Text(if (modoCrearCuenta) "Nombre de usuario" else "Usuario o Correo") },
+                label = { Text("Correo electrónico") },
                 leadingIcon = {
                     Icon(
-                        imageVector = Icons.Default.Person,
+                        imageVector = Icons.Default.Email,
                         contentDescription = null
                     )
                 },
@@ -182,37 +260,10 @@ fun PantallaLogin(
                 modifier = Modifier.fillMaxWidth().visibleAlEscribir(),
                 shape = RoundedCornerShape(12.dp),
                 keyboardOptions = KeyboardOptions(
-                    keyboardType = if (modoCrearCuenta) KeyboardType.Text else KeyboardType.Email,
+                    keyboardType = KeyboardType.Email,
                     imeAction = ImeAction.Next
                 )
             )
-
-            if (modoCrearCuenta) {
-                Spacer(modifier = Modifier.height(16.dp))
-
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = {
-                        email = it
-                        mensajeError = null
-                    },
-                    label = { Text("Correo electrónico") },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Email,
-                            contentDescription = null
-                        )
-                    },
-                    singleLine = true,
-                    enabled = !cargando,
-                    modifier = Modifier.fillMaxWidth().visibleAlEscribir(),
-                    shape = RoundedCornerShape(12.dp),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Email,
-                        imeAction = ImeAction.Next
-                    )
-                )
-            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -288,18 +339,17 @@ fun PantallaLogin(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            if (permitirCrearCuenta) {
-                TextButton(onClick = ::cambiarModo, enabled = !cargando) {
-                    Text(if (modoCrearCuenta) "Ya tengo cuenta. Iniciar sesión" else "¿No tenés cuenta? Crear cuenta")
-                }
-            } else {
-                Text(
-                    text = "¿No tenés usuario? Pedíselo al dueño del comercio.",
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            TextButton(onClick = ::cambiarModo, enabled = !cargando) {
+                Text(if (modoCrearCuenta) "Ya tengo cuenta. Iniciar sesión" else "¿Tenés un local? Crear cuenta")
             }
+
+            // Los empleados no se registran solos: evita que creen un local nuevo por error
+            Text(
+                text = "Si trabajás en un local, pedile al dueño que te cree un usuario con tu correo.",
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -356,9 +406,8 @@ private const val MINIMO_CONTRASENA = 4
 private fun PantallaLoginPreview() {
     MaterialTheme {
         PantallaLogin(
-            permitirCrearCuenta = true,
             onIniciarSesion = { _, _ -> true },
-            onCrearCuenta = { _, _, _ -> null }
+            onCrearCuenta = { _, _, _, _ -> null }
         )
     }
 }

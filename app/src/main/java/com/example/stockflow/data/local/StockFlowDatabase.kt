@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.stockflow.data.local.dao.DetalleVentaDao
 import com.example.stockflow.data.local.dao.DispositivoDao
+import com.example.stockflow.data.local.dao.LocalDao
 import com.example.stockflow.data.local.dao.LoteDao
 import com.example.stockflow.data.local.dao.MovimientoDao
 import com.example.stockflow.data.local.dao.ProductoDao
@@ -13,6 +14,7 @@ import com.example.stockflow.data.local.dao.UsuarioDao
 import com.example.stockflow.data.local.dao.VentaDao
 import com.example.stockflow.data.local.entity.DetalleVentaEntity
 import com.example.stockflow.data.local.entity.DispositivoEntity
+import com.example.stockflow.data.local.entity.LocalEntity
 import com.example.stockflow.data.local.entity.LoteEntity
 import com.example.stockflow.data.local.entity.MovimientoEntity
 import com.example.stockflow.data.local.entity.ProductoEntity
@@ -27,13 +29,15 @@ import com.example.stockflow.data.local.entity.VentaEntity
         DetalleVentaEntity::class,
         MovimientoEntity::class,
         DispositivoEntity::class,
-        UsuarioEntity::class
+        UsuarioEntity::class,
+        LocalEntity::class
     ],
-    version = 8,
+    version = 10,
     exportSchema = true
 )
 abstract class StockFlowDatabase : RoomDatabase() {
 
+    abstract fun localDao(): LocalDao
     abstract fun productoDao(): ProductoDao
     abstract fun loteDao(): LoteDao
     abstract fun ventaDao(): VentaDao

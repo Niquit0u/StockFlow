@@ -26,10 +26,11 @@ interface VentaDao {
         FROM ventas
         INNER JOIN detalle_ventas ON detalle_ventas.idVenta = ventas.idVenta
         INNER JOIN productos ON productos.idProducto = detalle_ventas.idProducto
+        WHERE ventas.idLocal = :idLocal
         ORDER BY ventas.fechaHora DESC, productos.nombre
         """
     )
-    fun observarHistorial(): Flow<List<DetalleVentaConProducto>>
+    fun observarHistorial(idLocal: Int): Flow<List<DetalleVentaConProducto>>
 
     @Query("SELECT * FROM ventas WHERE idVenta = :id")
     suspend fun obtenerPorId(id: Int): VentaEntity?
