@@ -48,7 +48,8 @@ data class CambiosLote(
     val codigoBarra: String, // vacío = producto sin código
     val cantidad: Int,
     val precio: Double?, // null = sin precio
-    val fechaVencimiento: String // dd/MM/yyyy
+    val fechaVencimiento: String, // dd/MM/yyyy
+    val categoria: String // nombre de una categoría del local
 )
 
 // Venta registrada, para el historial de ventas
@@ -117,5 +118,11 @@ fun formatearPrecio(valor: Double): String {
     return "$" + formato.format(valor)
 }
 
-// Lista de categorías disponibles en la tienda
-val categoriasDisponibles = listOf("Lácteos", "Bebidas", "Carnes", "Snacks", "Frutas & Verduras", "Otros")
+// Categoría que tiene todo local desde el principio, para productos sin una categoría asignada
+const val NOMBRE_SIN_CATEGORIA = "Sin categoría"
+
+// Categoría de productos de un local
+data class CategoriaItem(
+    val idCategoria: Int,
+    val nombre: String
+)

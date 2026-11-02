@@ -14,6 +14,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -24,6 +25,25 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ViewConfiguration
+import androidx.compose.ui.platform.LocalViewConfiguration
+import com.example.stockflow.ui.componentes.EstadoReordenar
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import kotlinx.coroutines.launch
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.focus.FocusRequester
@@ -35,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.stockflow.ui.componentes.CampoCantidad
 import com.example.stockflow.ui.componentes.CampoFecha
+import com.example.stockflow.ui.componentes.SelectorCategoria
 import com.example.stockflow.ui.componentes.esFechaValida
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -48,8 +69,81 @@ fun PantallaAlertas(
     // Guarda los cambios hechos a un lote con el lápiz; null = sin permiso (no se muestra el lápiz)
     onEditarLote: ((CambiosLote) -> Unit)? = null,
     // Abre el historial de ventas (botón de recibo); null = sin permiso (no se muestra el botón)
-    onAbrirHistorial: (() -> Unit)? = null
+    onAbrirHistorial: (() -> Unit)? = null,
+    // Categorías del local (siempre hay al menos una)
+    categorias: List<CategoriaItem> = emptyList(),
+    // Crea una categoría; devuelve null si se creó o el error para mostrar. null = sin permiso
+    onCrearCategoria: (suspend (String) -> String?)? = null,
+    // Elimina una categoría (sus productos pasan a otra). null = sin permiso
+    onEliminarCategoria: ((CategoriaItem) -> Unit)? = null,
+    // Guarda el orden elegido arrastrando (ids de arriba a abajo). null = sin permiso para reordenar
+    onReordenarCategorias: ((List<Int>) -> Unit)? = null
 ) {
+
+    /*
+     * Orden de las categorías mientras se arrastra: se mueve en esta copia y al soltar se guarda.
+     * Fuera del arrastre se mantiene igual a lo que viene de la base.
+     */
+    val ordenCategorias = remember { mutableStateListOf<CategoriaItem>() }
+    val estadoListaCategorias = rememberLazyListState()
+    val estadoReordenar = remember(estadoListaCategorias) {
+        EstadoReordenar(
+            lista = estadoListaCategorias,
+            // Solo entre las categorías (índices 0 a n-1): nunca debajo de "Agregar categoría"
+            rango = { 0..(ordenCategorias.size - 1).coerceAtLeast(0) },
+            onMover = { desde, hacia -> ordenCategorias.add(hacia, ordenCategorias.removeAt(desde)) }
+        )
+    }
+
+    LaunchedEffect(categorias) {
+        if (estadoReordenar.indiceArrastrado == null) {
+            ordenCategorias.clear()
+            ordenCategorias.addAll(categorias)
+        }
+    }
+
+    fun terminarArrastre() {
+        estadoReordenar.terminar()
+        val ids = ordenCategorias.map { it.idCategoria }
+        // Con una sola categoría (o si se soltó en el mismo lugar) no cambia nada y no se guarda
+        if (ids != categorias.map { it.idCategoria }) onReordenarCategorias?.invoke(ids)
+    }
+
+    val vibracion = LocalHapticFeedback.current
+
+    // Igual a la configuración del sistema, pero el "mantener apretado" se activa más rápido
+    val configuracionSistema = LocalViewConfiguration.current
+    val configuracionArrastreRapido = remember(configuracionSistema) {
+        object : ViewConfiguration by configuracionSistema {
+            override val longPressTimeoutMillis: Long = ESPERA_ARRASTRE_MS
+        }
+    }
+
+    var mostrarNuevaCategoria by remember {
+        mutableStateOf(false)
+    }
+
+    // Modo eliminar: las categorías se pintan de rojo con un tacho al lado
+    var modoEliminarCategorias by remember {
+        mutableStateOf(false)
+    }
+
+    // Aviso cuando se intenta eliminar y queda una sola categoría
+    var avisoUltimaCategoria by remember {
+        mutableStateOf(false)
+    }
+
+    // Si al borrar queda una sola categoría, se sale solo del modo eliminar
+    LaunchedEffect(categorias.size) {
+        if (categorias.size <= 1) modoEliminarCategorias = false
+    }
+
+    // Cantidad de productos distintos (con stock) en cada categoría, para mostrar en las tarjetas
+    val productosPorCategoria = remember(lotes) {
+        lotes.groupBy { it.categoria }.mapValues { (_, lotesCategoria) ->
+            lotesCategoria.map { it.nombreProducto }.distinct().size
+        }
+    }
 
     // Lote abierto en el diálogo de edición (lápiz)
     var loteEnEdicion by remember {
@@ -571,6 +665,9 @@ fun PantallaAlertas(
                      */
                     LazyColumn(
 
+                        state =
+                            estadoListaCategorias,
+
                         modifier =
                             Modifier.fillMaxSize(),
 
@@ -583,24 +680,110 @@ fun PantallaAlertas(
                             )
                     ) {
 
-                        items(
-                            categoriasDisponibles
-                        ) { categoria ->
+                        itemsIndexed(
+                            items = ordenCategorias,
+                            key = { _, categoria -> categoria.idCategoria }
+                        ) { indice, categoria ->
 
-                            TarjetaCategoria(
+                            val indiceActual by rememberUpdatedState(indice)
+                            val arrastrando = estadoReordenar.indiceArrastrado == indice
 
-                                nombreCategoria =
-                                    categoria,
-
-                                onClick = {
-
-                                    categoriaSeleccionada =
-                                        categoria
-
-                                    productoAExpandir =
-                                        null
+                            // Mantener apretada cualquier parte de la tarjeta (menos tiempo que lo normal) y mover
+                            val gestoReordenar =
+                                if (onReordenarCategorias == null) {
+                                    Modifier
+                                } else {
+                                    Modifier.pointerInput(Unit) {
+                                        detectDragGesturesAfterLongPress(
+                                            onDragStart = {
+                                                vibracion.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                estadoReordenar.iniciar(indiceActual)
+                                            },
+                                            onDrag = { cambio, arrastre ->
+                                                cambio.consume()
+                                                estadoReordenar.arrastrar(arrastre.y)
+                                            },
+                                            onDragEnd = { terminarArrastre() },
+                                            onDragCancel = { terminarArrastre() }
+                                        )
+                                    }
                                 }
-                            )
+
+                            CompositionLocalProvider(LocalViewConfiguration provides configuracionArrastreRapido) {
+
+                                TarjetaCategoria(
+
+                                    modifier = Modifier
+                                        // La arrastrada se dibuja encima de las demás, corrida y un poco más grande
+                                        .zIndex(if (arrastrando) 1f else 0f)
+                                        .graphicsLayer {
+                                            translationY = if (arrastrando) estadoReordenar.desplazamiento else 0f
+                                            val escala = if (arrastrando) 1.03f else 1f
+                                            scaleX = escala
+                                            scaleY = escala
+                                        }
+                                        // Las demás se corren con animación para hacerle lugar
+                                        .then(if (arrastrando) Modifier else Modifier.animateItem())
+                                        .then(gestoReordenar),
+
+                                    arrastrando =
+                                        arrastrando,
+
+                                    nombreCategoria =
+                                        categoria.nombre,
+
+                                    cantidadProductos =
+                                        productosPorCategoria[categoria.nombre] ?: 0,
+
+                                    modoEliminar =
+                                        modoEliminarCategorias,
+
+                                    onEliminar = {
+                                        onEliminarCategoria?.invoke(categoria)
+                                    },
+
+                                    onClick = {
+
+                                        categoriaSeleccionada =
+                                            categoria.nombre
+
+                                        productoAExpandir =
+                                            null
+                                    }
+                                )
+                            }
+                        }
+
+                        // Crear y eliminar categorías: solo quien puede editar el inventario
+                        if (onCrearCategoria != null && onEliminarCategoria != null) {
+
+                            item(key = "acciones-categorias") {
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+
+                                    TarjetaAgregarCategoria(
+                                        onClick = {
+                                            modoEliminarCategorias = false
+                                            mostrarNuevaCategoria = true
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    )
+
+                                    BotonEliminarCategoria(
+                                        activo = modoEliminarCategorias,
+                                        onClick = {
+                                            when {
+                                                // Segundo toque: termina de eliminar
+                                                modoEliminarCategorias -> modoEliminarCategorias = false
+                                                categorias.size <= 1 -> avisoUltimaCategoria = true
+                                                else -> modoEliminarCategorias = true
+                                            }
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -797,11 +980,31 @@ fun PantallaAlertas(
         }
     }
 
+    if (mostrarNuevaCategoria && onCrearCategoria != null) {
+        DialogoNuevaCategoria(
+            onCrear = onCrearCategoria,
+            onCerrar = { mostrarNuevaCategoria = false }
+        )
+    }
+
+    if (avisoUltimaCategoria) {
+        AlertDialog(
+            onDismissRequest = { avisoUltimaCategoria = false },
+            title = { Text("No se puede eliminar") },
+            text = { Text("Tiene que quedar al menos una categoría. Creá otra antes de eliminar esta.") },
+            confirmButton = {
+                TextButton(onClick = { avisoUltimaCategoria = false }) { Text("Entendido") }
+            }
+        )
+    }
+
     loteEnEdicion?.let { lote ->
 
         DialogoEditarLote(
 
             lote = lote,
+
+            categorias = categorias.map { it.nombre },
 
             onGuardar = { cambios ->
 
@@ -977,16 +1180,28 @@ fun TarjetaCategoria(
 
     nombreCategoria: String,
 
+    cantidadProductos: Int,
+
+    modifier: Modifier = Modifier,
+
+    // true mientras el usuario la está moviendo (se dibuja más elevada)
+    arrastrando: Boolean = false,
+
+    // En modo eliminar la tarjeta se pinta de rojo, no se abre al tocarla y muestra un tacho
+    modoEliminar: Boolean = false,
+
+    onEliminar: () -> Unit = {},
+
     onClick: () -> Unit
 
 ) {
 
     Card(
 
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(80.dp)
-            .clickable {
+            .clickable(enabled = !modoEliminar) {
                 onClick()
             },
 
@@ -995,15 +1210,16 @@ fun TarjetaCategoria(
 
         elevation =
             CardDefaults.cardElevation(
-                defaultElevation = 4.dp
+                defaultElevation = if (arrastrando) 12.dp else 4.dp
             ),
 
         colors =
             CardDefaults.cardColors(
                 containerColor =
-                    MaterialTheme
-                        .colorScheme
-                        .surfaceVariant
+                    if (modoEliminar)
+                        MaterialTheme.colorScheme.errorContainer
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant
             )
     ) {
 
@@ -1012,7 +1228,8 @@ fun TarjetaCategoria(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(
-                    horizontal = 20.dp
+                    start = 20.dp,
+                    end = if (modoEliminar) 8.dp else 20.dp
                 ),
 
             verticalAlignment =
@@ -1028,9 +1245,10 @@ fun TarjetaCategoria(
                     "Categoría",
 
                 tint =
-                    MaterialTheme
-                        .colorScheme
-                        .primary,
+                    if (modoEliminar)
+                        MaterialTheme.colorScheme.error
+                    else
+                        MaterialTheme.colorScheme.primary,
 
                 modifier =
                     Modifier.size(32.dp)
@@ -1041,19 +1259,190 @@ fun TarjetaCategoria(
                     Modifier.width(16.dp)
             )
 
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+
+                Text(
+
+                    text =
+                        nombreCategoria,
+
+                    fontSize =
+                        20.sp,
+
+                    fontWeight =
+                        FontWeight.Bold,
+
+                    color =
+                        if (modoEliminar)
+                            MaterialTheme.colorScheme.error
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Text(
+
+                    text = when (cantidadProductos) {
+                        0 -> "Sin productos"
+                        1 -> "1 producto"
+                        else -> "$cantidadProductos productos"
+                    },
+
+                    style =
+                        MaterialTheme.typography.bodySmall,
+
+                    color =
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (modoEliminar) {
+
+                IconButton(
+                    onClick = onEliminar
+                ) {
+
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Eliminar categoría $nombreCategoria",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+
+/*
+ * ------------------------------------------------
+ * CREAR / ELIMINAR CATEGORÍAS
+ * ------------------------------------------------
+ */
+
+// Cuadro con borde punteado y una cruz: indica que se pueden crear categorías
+@Composable
+fun TarjetaAgregarCategoria(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colorBorde = MaterialTheme.colorScheme.primary
+
+    Row(
+        modifier = modifier
+            .height(80.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .drawBehind {
+                drawRoundRect(
+                    color = colorBorde,
+                    style = Stroke(
+                        width = 2.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(12.dp.toPx(), 8.dp.toPx()))
+                    ),
+                    cornerRadius = CornerRadius(12.dp.toPx())
+                )
+            }
+            .padding(horizontal = 20.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.Add,
+            contentDescription = null,
+            tint = colorBorde,
+            modifier = Modifier.size(32.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = "Agregar categoría",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = colorBorde
+        )
+    }
+}
+
+// Activa el modo eliminar; tocándolo de nuevo ("Listo") se sale
+@Composable
+fun BotonEliminarCategoria(activo: Boolean, onClick: () -> Unit) {
+    val colores = if (activo) {
+        CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.error)
+    } else {
+        CardDefaults.outlinedCardColors()
+    }
+    val colorContenido = if (activo) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.error
+
+    OutlinedCard(
+        onClick = onClick,
+        modifier = Modifier.size(80.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = colores
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = if (activo) Icons.Default.Check else Icons.Default.Delete,
+                contentDescription = null,
+                tint = colorContenido
+            )
             Text(
-
-                text =
-                    nombreCategoria,
-
-                fontSize =
-                    20.sp,
-
-                fontWeight =
-                    FontWeight.Bold
+                text = if (activo) "Listo" else "Eliminar",
+                style = MaterialTheme.typography.labelMedium,
+                color = colorContenido
             )
         }
     }
+}
+
+@Composable
+fun DialogoNuevaCategoria(
+    onCrear: suspend (String) -> String?,
+    onCerrar: () -> Unit
+) {
+    var nombre by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var guardando by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    fun crear() {
+        guardando = true
+        scope.launch {
+            try {
+                val resultado = onCrear(nombre)
+                if (resultado == null) onCerrar() else error = resultado
+            } finally {
+                guardando = false
+            }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onCerrar,
+        title = { Text("Nueva categoría") },
+        text = {
+            OutlinedTextField(
+                value = nombre,
+                onValueChange = { nombre = it; error = null },
+                label = { Text("Nombre, por ejemplo Lácteos") },
+                isError = error != null,
+                supportingText = error?.let { texto -> { Text(texto) } },
+                singleLine = true,
+                enabled = !guardando,
+                modifier = Modifier.visibleAlEscribir()
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = ::crear, enabled = nombre.isNotBlank() && !guardando) { Text("Crear") }
+        },
+        dismissButton = {
+            TextButton(onClick = onCerrar, enabled = !guardando) { Text("Cancelar") }
+        }
+    )
 }
 
 
@@ -1438,6 +1827,9 @@ fun DialogoEditarLote(
 
     lote: LoteItem,
 
+    // Nombres de las categorías del local
+    categorias: List<String>,
+
     onGuardar: (CambiosLote) -> Unit,
 
     onCancelar: () -> Unit
@@ -1445,6 +1837,7 @@ fun DialogoEditarLote(
 ) {
 
     var nombre by remember { mutableStateOf(lote.nombreProducto) }
+    var categoria by remember { mutableStateOf(lote.categoria) }
     var codigoBarra by remember { mutableStateOf(lote.codigoBarra) }
     var cantidad by remember { mutableStateOf(lote.cantidadActual.toString()) }
     var precio by remember { mutableStateOf(lote.precio?.toString().orEmpty()) }
@@ -1517,8 +1910,14 @@ fun DialogoEditarLote(
                     esError = !fechaValida
                 )
 
+                SelectorCategoria(
+                    categorias = categorias,
+                    seleccionada = categoria,
+                    onSeleccionar = { categoria = it }
+                )
+
                 Text(
-                    text = "El nombre, el código y el precio se aplican a todos los lotes de este producto.",
+                    text = "El nombre, el código, el precio y la categoría se aplican a todos los lotes de este producto.",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1537,7 +1936,8 @@ fun DialogoEditarLote(
                             codigoBarra = codigoBarra.trim(),
                             cantidad = cantidadValida ?: return@TextButton,
                             precio = precioIngresado.toDoubleOrNull(),
-                            fechaVencimiento = fecha
+                            fechaVencimiento = fecha,
+                            categoria = categoria
                         )
                     )
                 }
@@ -1554,3 +1954,6 @@ fun DialogoEditarLote(
         }
     )
 }
+
+// Tiempo que hay que mantener apretada una categoría para empezar a moverla (el del sistema ronda 400-500 ms)
+private const val ESPERA_ARRASTRE_MS = 200L

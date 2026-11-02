@@ -14,13 +14,21 @@ import androidx.room.PrimaryKey
             childColumns = ["idLocal"],
             // Si se borra un local se borra todo lo suyo
             onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = CategoriaEntity::class,
+            parentColumns = ["idCategoria"],
+            childColumns = ["idCategoria"],
+            // Una categoría con productos no se borra: antes se mueven a otra (CategoriaRepository.eliminar)
+            onDelete = ForeignKey.RESTRICT
         )
     ],
     indices = [
         // Dentro de un local, un código de barras identifica a un solo producto
         // (dos locales pueden tener el mismo producto, cada uno con su stock).
         // Es nullable: SQLite permite varios NULL en un índice único (productos sin código).
-        Index(value = ["idLocal", "codigoBarra"], unique = true)
+        Index(value = ["idLocal", "codigoBarra"], unique = true),
+        Index(value = ["idCategoria"])
     ]
 )
 data class ProductoEntity(
@@ -33,7 +41,7 @@ data class ProductoEntity(
 
     val codigoBarra: String?,
 
-    val categoria: String,
+    val idCategoria: Int,
 
     val precioVenta: Double = 0.0,
 

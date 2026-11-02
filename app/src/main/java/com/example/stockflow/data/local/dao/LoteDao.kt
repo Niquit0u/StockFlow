@@ -27,9 +27,10 @@ interface LoteDao {
 
     @Query(
         """
-        SELECT lotes.*, productos.nombre, productos.codigoBarra, productos.categoria, productos.precioVenta
+        SELECT lotes.*, productos.nombre, productos.codigoBarra, categorias.nombre AS categoria, productos.precioVenta
         FROM lotes
         INNER JOIN productos ON productos.idProducto = lotes.idProducto
+        INNER JOIN categorias ON categorias.idCategoria = productos.idCategoria
         WHERE productos.idLocal = :idLocal AND lotes.cantidadActual > 0
         ORDER BY lotes.idLote DESC
         """

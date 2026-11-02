@@ -24,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.example.stockflow.data.local.StockFlowDatabase
+import com.example.stockflow.data.repository.CategoriaRepository
 import com.example.stockflow.data.repository.DispositivoRepository
 import com.example.stockflow.data.repository.InventarioRepository
 import com.example.stockflow.data.repository.SesionRepository
@@ -83,10 +84,14 @@ class MainActivity : ComponentActivity() {
                             val ventas = remember(sesionActual.idLocal) {
                                 VentaRepository(database.ventaDao(), sesionActual.idLocal)
                             }
+                            val categorias = remember(sesionActual.idLocal) {
+                                CategoriaRepository(database, sesionActual.idLocal)
+                            }
                             AplicacionInteractivaStockFlow(
                                 sesion = sesionActual,
                                 inventario = inventario,
                                 ventas = ventas,
+                                categorias = categorias,
                                 usuarios = usuarios,
                                 onCerrarSesion = { cambiarSesion(null) }
                             )
@@ -148,6 +153,7 @@ fun AplicacionInteractivaStockFlow(
     sesion: SesionUsuario,
     inventario: InventarioRepository,
     ventas: VentaRepository,
+    categorias: CategoriaRepository,
     usuarios: UsuarioRepository,
     onCerrarSesion: () -> Unit
 ) {
@@ -156,6 +162,10 @@ fun AplicacionInteractivaStockFlow(
     val listaLotes by remember(inventario) { inventario.observarLotes() }.collectAsState(initial = emptyList())
 
     val rol = sesion.rol
+
+    // Categorías del local: la primera vez se crea "Sin categoría"
+    LaunchedEffect(categorias) { categorias.asegurarCategoriaPorDefecto() }
+    val listaCategorias by remember(categorias) { categorias.observar() }.collectAsState(initial = emptyList())
 
     // Las pestañas dependen de los permisos: el empleado no ve "Ingresar Stock"
     val secciones = remember(rol) {
@@ -227,6 +237,33 @@ fun AplicacionInteractivaStockFlow(
                     )
                 } else PantallaAlertas(
                     onAbrirHistorial = { mostrarHistorialVentas = true },
+                    categorias = listaCategorias,
+                    // Crear y eliminar categorías: los mismos roles que pueden editar el inventario
+                    onCrearCategoria = if (rol.puedeEditarInventario) {
+                        { nombre -> categorias.crear(nombre) }
+                    } else {
+                        null
+                    },
+                    onReordenarCategorias = if (rol.puedeEditarInventario) {
+                        { ids -> scope.launch { categorias.reordenar(ids) } }
+                    } else {
+                        null
+                    },
+                    onEliminarCategoria = if (rol.puedeEditarInventario) {
+                        { categoria ->
+                            scope.launch {
+                                val mensaje = when (val resultado = categorias.eliminar(categoria.idCategoria)) {
+                                    is CategoriaRepository.ResultadoEliminar.Eliminada ->
+                                        "Categoría ${categoria.nombre} eliminada. Sus productos pasaron a ${resultado.destino}"
+                                    CategoriaRepository.ResultadoEliminar.EsLaUltima ->
+                                        "Tiene que quedar al menos una categoría"
+                                }
+                                Toast.makeText(context, mensaje, Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    } else {
+                        null
+                    },
                     lotes = listaLotes,
                     busquedaInicial = busquedaInventario,
                     onEditarLote = if (!rol.puedeEditarInventario) null else { cambios ->
@@ -268,6 +305,7 @@ fun AplicacionInteractivaStockFlow(
                 Seccion.INGRESAR -> if (!rol.puedeIngresarStock) {
                     LaunchedEffect(Unit) { cambiarPestaña(Seccion.INVENTARIO) }
                 } else PantallaAgregar(
+                    categorias = listaCategorias.map { it.nombre },
                     buscarProductoPorCodigo = { codigo ->
                         listaLotes.firstOrNull { it.codigoBarra == codigo }
                     },
