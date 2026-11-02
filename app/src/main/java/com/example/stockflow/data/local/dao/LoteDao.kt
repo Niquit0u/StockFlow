@@ -30,11 +30,11 @@ interface LoteDao {
         SELECT lotes.*, productos.nombre, productos.codigoBarra, productos.categoria, productos.precioVenta
         FROM lotes
         INNER JOIN productos ON productos.idProducto = lotes.idProducto
-        WHERE lotes.cantidadActual > 0
+        WHERE productos.idLocal = :idLocal AND lotes.cantidadActual > 0
         ORDER BY lotes.idLote DESC
         """
     )
-    fun observarConProducto(): Flow<List<LoteConProducto>>
+    fun observarConProducto(idLocal: Int): Flow<List<LoteConProducto>>
 
     @Update
     suspend fun actualizar(lote: LoteEntity)

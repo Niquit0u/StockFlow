@@ -44,9 +44,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val database = StockFlowDatabase.getDatabase(this)
-        val inventario = InventarioRepository(database)
-        val ventas = VentaRepository(database.ventaDao())
-        val usuarios = UsuarioRepository(database.usuarioDao())
+        val usuarios = UsuarioRepository(database)
         val dispositivos = DispositivoRepository(database.dispositivoDao())
         val sesionGuardada = SesionRepository(this, usuarios)
 
@@ -58,8 +56,8 @@ class MainActivity : ComponentActivity() {
                 CentrarCamposAlEscribir {
                     // Usuario que inició sesión (null = mostrar login). Se conserva al girar el teléfono
                     var sesion by rememberSaveable(stateSaver = GuardadoSesion) { mutableStateOf<SesionUsuario?>(null) }
-                    // null mientras se consulta; false = el teléfono no tiene cuentas y se puede crear la del dueño
-                    var hayUsuarios by remember { mutableStateOf<Boolean?>(null) }
+                    // true mientras se busca la sesión guardada (pantalla vacía por un instante)
+                    var restaurando by remember { mutableStateOf(true) }
 
                     // Inicia o cierra sesión y lo recuerda para la próxima vez que se abra la app
                     fun cambiarSesion(nueva: SesionUsuario?) {
@@ -71,42 +69,46 @@ class MainActivity : ComponentActivity() {
                         if (sesion != null) return@LaunchedEffect
                         // Al abrir la app: si había una sesión guardada se entra directo, sin pasar por el login
                         val restaurada = sesionGuardada.restaurar()
-                        if (restaurada != null) sesion = restaurada else hayUsuarios = usuarios.hayUsuarios()
+                        if (restaurada != null) sesion = restaurada
+                        restaurando = false
                     }
 
                     val sesionActual = sesion
                     when {
-                        sesionActual != null -> AplicacionInteractivaStockFlow(
-                            sesion = sesionActual,
-                            inventario = inventario,
-                            ventas = ventas,
-                            usuarios = usuarios,
-                            onCerrarSesion = { cambiarSesion(null) }
-                        )
+                        sesionActual != null -> {
+                            // Inventario y ventas trabajan solo con el local de la sesión
+                            val inventario = remember(sesionActual.idLocal) {
+                                InventarioRepository(database, sesionActual.idLocal)
+                            }
+                            val ventas = remember(sesionActual.idLocal) {
+                                VentaRepository(database.ventaDao(), sesionActual.idLocal)
+                            }
+                            AplicacionInteractivaStockFlow(
+                                sesion = sesionActual,
+                                inventario = inventario,
+                                ventas = ventas,
+                                usuarios = usuarios,
+                                onCerrarSesion = { cambiarSesion(null) }
+                            )
+                        }
 
-                        // Consultando la base: pantalla vacía por un instante
-                        hayUsuarios == null -> Surface(modifier = Modifier.fillMaxSize()) {}
+                        restaurando -> Surface(modifier = Modifier.fillMaxSize()) {}
 
                         else -> PantallaLogin(
-                            permitirCrearCuenta = hayUsuarios == false,
-                            onIniciarSesion = { usuarioOEmail, contrasena ->
-                                val encontrada = usuarios.validar(usuarioOEmail, contrasena)
+                            onIniciarSesion = { email, contrasena ->
+                                val encontrada = usuarios.validar(email, contrasena)
                                 if (encontrada != null) cambiarSesion(encontrada)
                                 encontrada != null
                             },
-                            onCrearCuenta = { nombre, email, contrasena ->
-                                when (usuarios.registrarDueno(nombre, email, contrasena)) {
+                            onCrearCuenta = { nombreLocal, nombre, email, contrasena ->
+                                when (usuarios.registrarDueno(nombreLocal, nombre, email, contrasena)) {
                                     UsuarioRepository.ResultadoRegistro.CREADO -> {
-                                        // La cuenta del dueño entra directamente
-                                        cambiarSesion(usuarios.validar(nombre, contrasena))
+                                        // El dueño del local nuevo entra directamente
+                                        cambiarSesion(usuarios.validar(email, contrasena))
                                         null
                                     }
-                                    UsuarioRepository.ResultadoRegistro.NOMBRE_EN_USO -> "Ese nombre de usuario ya existe"
-                                    UsuarioRepository.ResultadoRegistro.EMAIL_EN_USO -> "Ya hay una cuenta con ese email"
-                                    UsuarioRepository.ResultadoRegistro.NO_PERMITIDO -> {
-                                        hayUsuarios = true
-                                        "Ya existe la cuenta del dueño. Pedile un usuario."
-                                    }
+                                    UsuarioRepository.ResultadoRegistro.EMAIL_EN_USO -> "Ya hay una cuenta con ese correo"
+                                    UsuarioRepository.ResultadoRegistro.NO_PERMITIDO -> "No se pudo crear la cuenta"
                                 }
                             }
                         )
@@ -119,8 +121,16 @@ class MainActivity : ComponentActivity() {
 
 // Guarda la sesión como lista simple para que sobreviva a la rotación de pantalla
 private val GuardadoSesion = Saver<SesionUsuario?, List<Any>>(
-    save = { sesion -> sesion?.let { listOf(it.idUsuario, it.nombre, it.rol.clave) } },
-    restore = { SesionUsuario(it[0] as Int, it[1] as String, Rol.desdeClave(it[2] as String)) }
+    save = { sesion -> sesion?.let { listOf(it.idUsuario, it.nombre, it.rol.clave, it.idLocal, it.nombreLocal) } },
+    restore = {
+        SesionUsuario(
+            idUsuario = it[0] as Int,
+            nombre = it[1] as String,
+            rol = Rol.desdeClave(it[2] as String),
+            idLocal = it[3] as Int,
+            nombreLocal = it[4] as String
+        )
+    }
 )
 
 // Pestañas de la barra inferior
@@ -153,7 +163,9 @@ fun AplicacionInteractivaStockFlow(
     }
     var pestañaSeleccionada by rememberSaveable { mutableStateOf(Seccion.INVENTARIO) }
 
-    val listaUsuarios by remember(usuarios) { usuarios.observarUsuarios() }.collectAsState(initial = emptyList())
+    val listaUsuarios by remember(usuarios, sesion.idLocal) {
+        usuarios.observarUsuarios(sesion.idLocal)
+    }.collectAsState(initial = emptyList())
 
     // Historial de ventas abierto dentro de la pestaña Inventario
     var mostrarHistorialVentas by remember { mutableStateOf(false) }
@@ -273,14 +285,13 @@ fun AplicacionInteractivaStockFlow(
                 Seccion.CUENTA -> PantallaCuenta(
                     sesion = sesion,
                     usuarios = listaUsuarios,
-                    onCrearUsuario = { nombre, contrasena, rolNuevo ->
-                        when (usuarios.crearUsuario(sesion, nombre, contrasena, rolNuevo)) {
+                    onCrearUsuario = { nombre, email, contrasena, rolNuevo ->
+                        when (usuarios.crearUsuario(sesion, nombre, email, contrasena, rolNuevo)) {
                             UsuarioRepository.ResultadoRegistro.CREADO -> {
                                 Toast.makeText(context, "Usuario $nombre creado", Toast.LENGTH_SHORT).show()
                                 null
                             }
-                            UsuarioRepository.ResultadoRegistro.NOMBRE_EN_USO -> "Ese nombre de usuario ya existe"
-                            UsuarioRepository.ResultadoRegistro.EMAIL_EN_USO -> "Ya hay una cuenta con ese email"
+                            UsuarioRepository.ResultadoRegistro.EMAIL_EN_USO -> "Ya hay un usuario con ese correo"
                             UsuarioRepository.ResultadoRegistro.NO_PERMITIDO -> "Solo el dueño puede crear usuarios"
                         }
                     },

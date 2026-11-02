@@ -25,7 +25,11 @@ import java.util.concurrent.TimeUnit
  * Puente entre la base de datos y las pantallas de lotes/vencimientos.
  * Las pantallas siguen trabajando con [LoteItem]; acá se convierte desde y hacia las entidades.
  */
-class InventarioRepository(private val database: StockFlowDatabase) {
+class InventarioRepository(
+    private val database: StockFlowDatabase,
+    // Local de la sesión: solo se ven y modifican sus productos, lotes y ventas
+    private val idLocal: Int
+) {
 
     private val productoDao = database.productoDao()
     private val loteDao = database.loteDao()
@@ -34,7 +38,7 @@ class InventarioRepository(private val database: StockFlowDatabase) {
     private val detalleVentaDao = database.detalleVentaDao()
 
     fun observarLotes(): Flow<List<LoteItem>> {
-        return loteDao.observarConProducto().map { lotes -> lotes.map { it.aLoteItem() } }
+        return loteDao.observarConProducto(idLocal).map { lotes -> lotes.map { it.aLoteItem() } }
     }
 
     /**
@@ -74,13 +78,14 @@ class InventarioRepository(private val database: StockFlowDatabase) {
             VentaEntity(
                 fechaHora = System.currentTimeMillis(),
                 montoTotal = items.sumOf { it.subtotal ?: 0.0 },
+                idLocal = idLocal,
                 idUsuario = vendedor.idUsuario,
                 vendedor = vendedor.nombre
             )
         ).toInt()
 
         items.forEach { item ->
-            val producto = productoDao.obtenerPorCodigoBarra(item.codigoBarra)
+            val producto = productoDao.obtenerPorCodigoBarra(idLocal, item.codigoBarra)
                 ?: throw IllegalStateException("${item.nombreProducto} ya no existe")
             detalleVentaDao.insertar(
                 DetalleVentaEntity(
@@ -134,11 +139,12 @@ class InventarioRepository(private val database: StockFlowDatabase) {
             val lote = loteDao.obtenerPorId(cambios.idLote)
                 ?: throw IllegalArgumentException("El lote ya no existe")
             val producto = productoDao.obtenerPorId(lote.idProducto)
+                ?.takeIf { it.idLocal == idLocal } // un lote de otro local no se puede editar
                 ?: throw IllegalArgumentException("El producto ya no existe")
 
             // El código de barras es único: no puede quedar repetido en dos productos
             if (codigo != null && codigo != producto.codigoBarra) {
-                productoDao.obtenerPorCodigoBarra(codigo)?.let {
+                productoDao.obtenerPorCodigoBarra(idLocal, codigo)?.let {
                     throw IllegalArgumentException("El código $codigo ya pertenece a ${it.nombre}")
                 }
             }
@@ -174,12 +180,13 @@ class InventarioRepository(private val database: StockFlowDatabase) {
         precio: Double? = null
     ): Long = database.withTransaction {
         val existente = if (codigoBarra != null) {
-            productoDao.obtenerPorCodigoBarra(codigoBarra)
+            productoDao.obtenerPorCodigoBarra(idLocal, codigoBarra)
         } else {
-            productoDao.obtenerSinCodigoPorNombre(nombre)
+            productoDao.obtenerSinCodigoPorNombre(idLocal, nombre)
         }
         val idProducto = existente?.idProducto ?: productoDao.insertar(
             ProductoEntity(
+                idLocal = idLocal,
                 nombre = nombre,
                 codigoBarra = codigoBarra,
                 categoria = categoria,

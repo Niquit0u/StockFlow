@@ -14,15 +14,25 @@ import androidx.room.PrimaryKey
             childColumns = ["idUsuario"],
             // Si se elimina el usuario la venta se conserva (queda el nombre en "vendedor")
             onDelete = ForeignKey.SET_NULL
+        ),
+        ForeignKey(
+            entity = LocalEntity::class,
+            parentColumns = ["idLocal"],
+            childColumns = ["idLocal"],
+            // Si se borra un local se borra todo lo suyo
+            onDelete = ForeignKey.CASCADE
         )
     ],
     indices = [
-        Index(value = ["idUsuario"])
+        Index(value = ["idUsuario"]),
+        Index(value = ["idLocal"])
     ]
 )
 data class VentaEntity(
     @PrimaryKey(autoGenerate = true)
     val idVenta: Int = 0,
+
+    val idLocal: Int,
 
     val fechaHora: Long,
 

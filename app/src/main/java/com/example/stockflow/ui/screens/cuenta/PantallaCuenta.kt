@@ -15,7 +15,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.foundation.text.KeyboardOptions
+import android.util.Patterns
 import androidx.compose.ui.unit.dp
 import com.example.stockflow.Rol
 import com.example.stockflow.SesionUsuario
@@ -34,7 +37,7 @@ import com.example.stockflow.ui.componentes.visibleAlEscribir
 fun PantallaCuenta(
     sesion: SesionUsuario,
     usuarios: List<UsuarioItem>,
-    onCrearUsuario: suspend (nombre: String, contrasena: String, rol: Rol) -> String?,
+    onCrearUsuario: suspend (nombre: String, email: String, contrasena: String, rol: Rol) -> String?,
     onEliminarUsuario: (UsuarioItem) -> Unit,
     onCerrarSesion: () -> Unit
 ) {
@@ -71,7 +74,7 @@ fun PantallaCuenta(
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(sesion.nombre, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text(
-                            sesion.rol.nombreVisible,
+                            "${sesion.rol.nombreVisible} de ${sesion.nombreLocal}",
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Medium
                         )
@@ -164,6 +167,10 @@ private fun FilaUsuario(
                     fontWeight = FontWeight.Medium
                 )
                 Text(
+                    text = usuario.email,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
                     text = usuario.rol.nombreVisible,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -183,10 +190,11 @@ private fun FilaUsuario(
 
 @Composable
 private fun DialogoNuevoUsuario(
-    onCrear: suspend (nombre: String, contrasena: String, rol: Rol) -> String?,
+    onCrear: suspend (nombre: String, email: String, contrasena: String, rol: Rol) -> String?,
     onCerrar: () -> Unit
 ) {
     var nombre by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
     var contrasena by remember { mutableStateOf("") }
     var repetir by remember { mutableStateOf("") }
     var rol by remember { mutableStateOf(Rol.EMPLEADO) }
@@ -196,7 +204,8 @@ private fun DialogoNuevoUsuario(
 
     fun crear() {
         error = when {
-            nombre.isBlank() || contrasena.isBlank() -> "Completá el nombre y la contraseña"
+            nombre.isBlank() || email.isBlank() || contrasena.isBlank() -> "Completá el nombre, el correo y la contraseña"
+            !Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches() -> "Ingresá un correo válido, por ejemplo nombre@mail.com"
             contrasena.length < MINIMO_CONTRASENA -> "La contraseña debe tener al menos $MINIMO_CONTRASENA caracteres"
             contrasena != repetir -> "Las contraseñas no coinciden"
             else -> null
@@ -205,7 +214,7 @@ private fun DialogoNuevoUsuario(
         guardando = true
         scope.launch {
             try {
-                val resultado = onCrear(nombre.trim(), contrasena, rol)
+                val resultado = onCrear(nombre.trim(), email.trim(), contrasena, rol)
                 if (resultado == null) onCerrar() else error = resultado
             } finally {
                 guardando = false
@@ -221,7 +230,17 @@ private fun DialogoNuevoUsuario(
                 OutlinedTextField(
                     value = nombre,
                     onValueChange = { nombre = it; error = null },
-                    label = { Text("Nombre de usuario") },
+                    label = { Text("Nombre") },
+                    singleLine = true,
+                    enabled = !guardando,
+                    modifier = Modifier.visibleAlEscribir()
+                )
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it; error = null },
+                    label = { Text("Correo electrónico") },
+                    supportingText = { Text("Con este correo va a iniciar sesión") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     singleLine = true,
                     enabled = !guardando,
                     modifier = Modifier.visibleAlEscribir()

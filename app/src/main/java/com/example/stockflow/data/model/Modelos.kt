@@ -94,14 +94,17 @@ enum class Rol(val clave: String, val nombreVisible: String) {
 data class SesionUsuario(
     val idUsuario: Int,
     val nombre: String,
-    val rol: Rol
+    val rol: Rol,
+    // Local del usuario: todo lo que ve y hace (inventario, ventas, empleados) es de este local
+    val idLocal: Int,
+    val nombreLocal: String
 )
 
 // Usuario para la lista de "Cuenta" (gestión de usuarios del dueño)
 data class UsuarioItem(
     val idUsuario: Int,
     val nombre: String,
-    val email: String?,
+    val email: String,
     val rol: Rol
 )
 
