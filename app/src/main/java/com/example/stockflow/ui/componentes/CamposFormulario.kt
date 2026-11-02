@@ -18,6 +18,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.example.stockflow.NOMBRE_SIN_CATEGORIA
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.OffsetMapping
@@ -158,3 +164,58 @@ private fun aMillisUtc(fecha: String): Long? {
 }
 
 private fun desdeMillisUtc(millis: Long): String = formatoUtc().format(millis)
+
+/**
+ * Lista desplegable con las categorías del local.
+ * Si [seleccionada] ya no existe (por ejemplo, la eliminaron), elige "Sin categoría" o la primera.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SelectorCategoria(
+    categorias: List<String>,
+    seleccionada: String,
+    onSeleccionar: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    etiqueta: String = "Categoría"
+) {
+    var expandido by remember { mutableStateOf(false) }
+
+    LaunchedEffect(categorias, seleccionada) {
+        if (categorias.isNotEmpty() && seleccionada !in categorias) {
+            onSeleccionar(categorias.firstOrNull { it == NOMBRE_SIN_CATEGORIA } ?: categorias.first())
+        }
+    }
+
+    ExposedDropdownMenuBox(
+        expanded = expandido,
+        onExpandedChange = { expandido = !expandido },
+        modifier = modifier
+    ) {
+        OutlinedTextField(
+            value = seleccionada,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(etiqueta) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandido) },
+            singleLine = true,
+            modifier = Modifier
+                .menuAnchor()
+                .fillMaxWidth()
+        )
+
+        ExposedDropdownMenu(
+            expanded = expandido,
+            onDismissRequest = { expandido = false }
+        ) {
+            categorias.forEach { categoria ->
+                DropdownMenuItem(
+                    text = { Text(categoria) },
+                    onClick = {
+                        onSeleccionar(categoria)
+                        expandido = false
+                    }
+                )
+            }
+        }
+    }
+}

@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.stockflow.ui.componentes.CampoCantidad
 import com.example.stockflow.ui.componentes.CampoFecha
+import com.example.stockflow.ui.componentes.SelectorCategoria
 import com.example.stockflow.ui.componentes.esFechaValida
 import com.example.stockflow.ui.screens.escaner.EscanerPantallaCompleta
 import com.example.stockflow.ui.componentes.visibleAlEscribir
@@ -31,6 +32,8 @@ fun PantallaAgregar(
     codigoInicial: String = "", // Recibe el código capturado por el escáner
     // Devuelve un lote existente con ese código (para autocompletar), o null si el producto es nuevo
     buscarProductoPorCodigo: (String) -> LoteItem? = { null },
+    // Nombres de las categorías del local
+    categorias: List<String> = listOf(NOMBRE_SIN_CATEGORIA),
     onAgregarLote: (LoteItem) -> Unit
 ) {
     var nombre by remember { mutableStateOf("") }
@@ -56,8 +59,9 @@ fun PantallaAgregar(
     }
     var mostrarEscaner by remember { mutableStateOf(false) }
 
-    var expandidoCategoria by remember { mutableStateOf(false) }
-    var categoriaSeleccionada by remember { mutableStateOf(categoriasDisponibles[0]) }
+    var categoriaSeleccionada by remember {
+        mutableStateOf(categorias.firstOrNull { it == NOMBRE_SIN_CATEGORIA } ?: categorias.firstOrNull().orEmpty())
+    }
 
     // Actualiza el campo de código de barras si cambia el valor transferido desde el escáner
     LaunchedEffect(codigoInicial) {
@@ -147,36 +151,14 @@ fun PantallaAgregar(
                 modifier = Modifier.fillMaxWidth().visibleAlEscribir()
             )
 
-            ExposedDropdownMenuBox(
-                expanded = expandidoCategoria,
-                onExpandedChange = { expandidoCategoria = !expandidoCategoria }
-            ) {
-                OutlinedTextField(
-                    value = categoriaSeleccionada,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Sección / Rubro") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandidoCategoria) },
-                    modifier = Modifier
-                        .menuAnchor()
-                        .fillMaxWidth().visibleAlEscribir()
-                )
-
-                ExposedDropdownMenu(
-                    expanded = expandidoCategoria,
-                    onDismissRequest = { expandidoCategoria = false }
-                ) {
-                    categoriasDisponibles.forEach { seleccion ->
-                        DropdownMenuItem(
-                            text = { Text(seleccion) },
-                            onClick = {
-                                categoriaSeleccionada = seleccion
-                                expandidoCategoria = false
-                            }
-                        )
-                    }
-                }
-            }
+            // Categorías del local (las mismas que se ven en Inventario)
+            SelectorCategoria(
+                categorias = categorias,
+                seleccionada = categoriaSeleccionada,
+                onSeleccionar = { categoriaSeleccionada = it },
+                etiqueta = "Categoría",
+                modifier = Modifier.fillMaxWidth()
+            )
 
             // El precio solo se pide cuando el código no corresponde a un producto ya cargado
             if (productoIdentificado == null) {

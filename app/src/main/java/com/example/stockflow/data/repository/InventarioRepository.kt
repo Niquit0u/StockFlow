@@ -3,6 +3,7 @@ package com.example.stockflow.data.repository
 import androidx.room.withTransaction
 import com.example.stockflow.CambiosLote
 import com.example.stockflow.EstadoSemaforo
+import com.example.stockflow.NOMBRE_SIN_CATEGORIA
 import com.example.stockflow.ItemDescuento
 import com.example.stockflow.LoteItem
 import com.example.stockflow.SesionUsuario
@@ -11,6 +12,7 @@ import com.example.stockflow.data.local.entity.LoteConProducto
 import com.example.stockflow.data.local.entity.LoteEntity
 import com.example.stockflow.data.local.entity.MovimientoEntity
 import com.example.stockflow.data.local.entity.ProductoEntity
+import com.example.stockflow.data.local.entity.CategoriaEntity
 import com.example.stockflow.data.local.entity.DetalleVentaEntity
 import com.example.stockflow.data.local.entity.VentaEntity
 import kotlinx.coroutines.flow.Flow
@@ -34,6 +36,7 @@ class InventarioRepository(
     private val productoDao = database.productoDao()
     private val loteDao = database.loteDao()
     private val movimientoDao = database.movimientoDao()
+    private val categoriaDao = database.categoriaDao()
     private val ventaDao = database.ventaDao()
     private val detalleVentaDao = database.detalleVentaDao()
 
@@ -121,7 +124,7 @@ class InventarioRepository(
 
     /**
      * Guarda los cambios hechos desde el lápiz de un lote en Inventario.
-     * Nombre, código de barras y precio son del producto (afectan a todos sus lotes);
+     * Nombre, código de barras, precio y categoría son del producto (afectan a todos sus lotes);
      * cantidad y vencimiento son del lote.
      * Si cambia la cantidad se registra un movimiento de ENTRADA o SALIDA por la diferencia.
      *
@@ -153,7 +156,8 @@ class InventarioRepository(
                 producto.copy(
                     nombre = cambios.nombre.trim(),
                     codigoBarra = codigo,
-                    precioVenta = cambios.precio ?: 0.0
+                    precioVenta = cambios.precio ?: 0.0,
+                    idCategoria = idCategoriaPorNombre(cambios.categoria)
                 )
             )
             loteDao.actualizar(lote.copy(cantidadActual = cambios.cantidad, fechaVencimiento = vencimiento))
@@ -169,6 +173,17 @@ class InventarioRepository(
                 )
             }
         }
+    }
+
+    /**
+     * Id de la categoría del local con ese nombre. Si no existe (por ejemplo, la borraron mientras se
+     * completaba el formulario) usa "Sin categoría" o la primera que haya, creándola si el local no tiene ninguna.
+     */
+    private suspend fun idCategoriaPorNombre(nombre: String): Int {
+        categoriaDao.buscarPorNombre(idLocal, nombre.trim())?.let { return it.idCategoria }
+        categoriaDao.buscarPorNombre(idLocal, NOMBRE_SIN_CATEGORIA)?.let { return it.idCategoria }
+        categoriaDao.obtenerDelLocal(idLocal).firstOrNull()?.let { return it.idCategoria }
+        return categoriaDao.insertar(CategoriaEntity(idLocal = idLocal, nombre = NOMBRE_SIN_CATEGORIA)).toInt()
     }
 
     private suspend fun registrar(
@@ -189,7 +204,7 @@ class InventarioRepository(
                 idLocal = idLocal,
                 nombre = nombre,
                 codigoBarra = codigoBarra,
-                categoria = categoria,
+                idCategoria = idCategoriaPorNombre(categoria),
                 precioVenta = precio ?: 0.0
             )
         ).toInt()
