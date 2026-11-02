@@ -310,8 +310,8 @@ private fun DialogoNuevoUsuario(
 
 private fun descripcionDelRol(rol: Rol): String = when (rol) {
     Rol.DUENO -> "Todos los permisos, incluido crear usuarios."
-    Rol.ADMINISTRADOR -> "Puede hacer todo menos crear usuarios: editar el inventario, ingresar stock y ver ventas."
-    Rol.EMPLEADO -> "Ve el inventario y el historial de ventas, y usa el escáner para buscar productos o vender. No puede editar ni ingresar stock."
+    Rol.ADMINISTRADOR -> "Puede hacer todo menos crear usuarios: editar el inventario, ingresar stock y ver el historial."
+    Rol.EMPLEADO -> "Ve el inventario y el historial, y usa el escáner para buscar productos o vender. No puede editar ni ingresar stock."
 }
 
 private const val MINIMO_CONTRASENA = 4

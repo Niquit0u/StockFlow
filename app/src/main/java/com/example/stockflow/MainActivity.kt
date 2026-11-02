@@ -29,8 +29,8 @@ import com.example.stockflow.data.repository.DispositivoRepository
 import com.example.stockflow.data.repository.InventarioRepository
 import com.example.stockflow.data.repository.SesionRepository
 import com.example.stockflow.data.repository.UsuarioRepository
-import com.example.stockflow.data.repository.VentaRepository
-import com.example.stockflow.ui.screens.ventas.PantallaHistorialVentas
+import com.example.stockflow.data.repository.HistorialRepository
+import com.example.stockflow.ui.screens.historial.PantallaHistorial
 import androidx.lifecycle.lifecycleScope
 import com.example.stockflow.ui.screens.escaner.PantallaEscaner
 import kotlinx.coroutines.launch
@@ -91,12 +91,13 @@ class MainActivity : ComponentActivity() {
                     val sesionActual = sesion
                     when {
                         sesionActual != null -> {
-                            // Inventario y ventas trabajan solo con el local de la sesión
+                            // Inventario e historial trabajan solo con el local de la sesión.
+                            // El inventario además sabe quién es el usuario, para anotarlo en el historial
                             val inventario = remember(sesionActual.idLocal) {
-                                InventarioRepository(database, sesionActual.idLocal)
+                                InventarioRepository(database, sesionActual)
                             }
-                            val ventas = remember(sesionActual.idLocal) {
-                                VentaRepository(database.ventaDao(), sesionActual.idLocal)
+                            val historial = remember(sesionActual.idLocal) {
+                                HistorialRepository(database.eventoDao(), sesionActual.idLocal)
                             }
                             val categorias = remember(sesionActual.idLocal) {
                                 CategoriaRepository(database, sesionActual.idLocal)
@@ -104,7 +105,7 @@ class MainActivity : ComponentActivity() {
                             AplicacionInteractivaStockFlow(
                                 sesion = sesionActual,
                                 inventario = inventario,
-                                ventas = ventas,
+                                historial = historial,
                                 categorias = categorias,
                                 usuarios = usuarios,
                                 onCerrarSesion = { cambiarSesion(null) }
@@ -166,7 +167,7 @@ private enum class Seccion(val titulo: String, val icono: ImageVector) {
 fun AplicacionInteractivaStockFlow(
     sesion: SesionUsuario,
     inventario: InventarioRepository,
-    ventas: VentaRepository,
+    historial: HistorialRepository,
     categorias: CategoriaRepository,
     usuarios: UsuarioRepository,
     onCerrarSesion: () -> Unit
@@ -191,9 +192,9 @@ fun AplicacionInteractivaStockFlow(
         usuarios.observarUsuarios(sesion.idLocal)
     }.collectAsState(initial = emptyList())
 
-    // Historial de ventas abierto dentro de la pestaña Inventario
-    var mostrarHistorialVentas by remember { mutableStateOf(false) }
-    val historialVentas by remember(ventas) { ventas.observarHistorial() }.collectAsState(initial = emptyList())
+    // Historial (ventas, ingresos y cambios) abierto dentro de la pestaña Inventario
+    var mostrarHistorial by remember { mutableStateOf(false) }
+    val eventosHistorial by remember(historial) { historial.observar() }.collectAsState(initial = emptyList())
 
     // Texto que el escáner manda a buscar en la pantalla de Inventario (opción "Buscar")
     var busquedaInventario by remember { mutableStateOf("") }
@@ -214,7 +215,7 @@ fun AplicacionInteractivaStockFlow(
 
     fun cambiarPestaña(pestaña: Seccion) {
         busquedaInventario = ""
-        mostrarHistorialVentas = false
+        mostrarHistorial = false
         pestañaSeleccionada = pestaña
     }
 
@@ -244,13 +245,13 @@ fun AplicacionInteractivaStockFlow(
                 .consumeWindowInsets(padding)
         ) {
             when (pestañaSeleccionada) {
-                Seccion.INVENTARIO -> if (mostrarHistorialVentas) {
-                    PantallaHistorialVentas(
-                        ventas = historialVentas,
-                        onVolver = { mostrarHistorialVentas = false }
+                Seccion.INVENTARIO -> if (mostrarHistorial) {
+                    PantallaHistorial(
+                        eventos = eventosHistorial,
+                        onVolver = { mostrarHistorial = false }
                     )
                 } else PantallaAlertas(
-                    onAbrirHistorial = { mostrarHistorialVentas = true },
+                    onAbrirHistorial = { mostrarHistorial = true },
                     categorias = listaCategorias,
                     // Crear y eliminar categorías: los mismos roles que pueden editar el inventario
                     onCrearCategoria = if (rol.puedeEditarInventario) {
@@ -302,7 +303,7 @@ fun AplicacionInteractivaStockFlow(
                     onDescontar = { items ->
                         scope.launch {
                             try {
-                                val idVenta = inventario.descontarStock(items, sesion)
+                                val idVenta = inventario.descontarStock(items)
                                 Toast.makeText(
                                     context,
                                     "Venta #$idVenta registrada: ${items.sumOf { it.cantidad }} unidades",

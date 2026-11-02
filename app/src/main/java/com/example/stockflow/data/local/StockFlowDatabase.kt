@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import com.example.stockflow.data.local.dao.CategoriaDao
 import com.example.stockflow.data.local.dao.DetalleVentaDao
 import com.example.stockflow.data.local.dao.DispositivoDao
+import com.example.stockflow.data.local.dao.EventoDao
 import com.example.stockflow.data.local.dao.LocalDao
 import com.example.stockflow.data.local.dao.LoteDao
 import com.example.stockflow.data.local.dao.MovimientoDao
@@ -16,6 +17,7 @@ import com.example.stockflow.data.local.dao.VentaDao
 import com.example.stockflow.data.local.entity.CategoriaEntity
 import com.example.stockflow.data.local.entity.DetalleVentaEntity
 import com.example.stockflow.data.local.entity.DispositivoEntity
+import com.example.stockflow.data.local.entity.EventoEntity
 import com.example.stockflow.data.local.entity.LocalEntity
 import com.example.stockflow.data.local.entity.LoteEntity
 import com.example.stockflow.data.local.entity.MovimientoEntity
@@ -33,15 +35,17 @@ import com.example.stockflow.data.local.entity.VentaEntity
         DispositivoEntity::class,
         UsuarioEntity::class,
         LocalEntity::class,
-        CategoriaEntity::class
+        CategoriaEntity::class,
+        EventoEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = true
 )
 abstract class StockFlowDatabase : RoomDatabase() {
 
     abstract fun localDao(): LocalDao
     abstract fun categoriaDao(): CategoriaDao
+    abstract fun eventoDao(): EventoDao
     abstract fun productoDao(): ProductoDao
     abstract fun loteDao(): LoteDao
     abstract fun ventaDao(): VentaDao
