@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.platform.LocalViewConfiguration
 import com.example.stockflow.ui.componentes.EstadoReordenar
+import com.example.stockflow.ui.theme.Semaforo
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.input.pointer.pointerInput
@@ -589,7 +590,7 @@ fun PantallaAlertas(
                                     "No se encontraron productos.",
 
                                 color =
-                                    Color.Gray,
+                                    MaterialTheme.colorScheme.onSurfaceVariant,
 
                                 modifier =
                                     Modifier.padding(
@@ -922,7 +923,7 @@ fun PantallaAlertas(
                                 },
 
                             color =
-                                Color.Gray,
+                                MaterialTheme.colorScheme.onSurfaceVariant,
 
                             modifier =
                                 Modifier.padding(
@@ -1119,7 +1120,7 @@ fun TarjetaResultadoBusqueda(
                         13.sp,
 
                     color =
-                        Color.Gray
+                        MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -1546,7 +1547,7 @@ fun TarjetaProductoExpandible(
                             12.sp,
 
                         color =
-                            Color.Gray
+                            MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
@@ -1685,13 +1686,13 @@ fun FilaDetalleLote(
     ) {
 
         EstadoSemaforo.CRITICO ->
-            Color(0xFFE53935)
+            Semaforo.critico
 
         EstadoSemaforo.ADVERTENCIA ->
-            Color(0xFFFB8C00)
+            Semaforo.advertencia
 
         EstadoSemaforo.OPTIMO ->
-            Color(0xFF43A047)
+            Semaforo.optimo
     }
 
     Row(
@@ -1699,7 +1700,7 @@ fun FilaDetalleLote(
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                Color(0xFFF5F5F5),
+                MaterialTheme.colorScheme.surfaceContainerHigh,
                 shape =
                     RoundedCornerShape(8.dp)
             )
@@ -1757,7 +1758,7 @@ fun FilaDetalleLote(
                     12.sp,
 
                 color =
-                    Color.DarkGray
+                    MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 

@@ -105,15 +105,6 @@ fun PantallaEscaner(
                     .border(2.dp, MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(16.dp))
             )
 
-            Button(
-                onClick = { alEscanear("779" + (10000000..99999999).random()) },
-                enabled = !hayDialogoAbierto,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text("Simular Captura (Prueba)", fontSize = 16.sp)
-            }
-
             if (modoDescuento) {
                 ListaADescontar(
                     items = itemsADescontar,

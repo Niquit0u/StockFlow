@@ -38,6 +38,7 @@ import androidx.camera.core.ExperimentalGetImage
 import androidx.annotation.OptIn
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.example.stockflow.ui.componentes.CentrarCamposAlEscribir
+import com.example.stockflow.ui.theme.StockFlowTheme
 import com.example.stockflow.ui.screens.login.PantallaLogin
 
 class MainActivity : ComponentActivity() {
@@ -52,7 +53,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { dispositivos.registrarEsteDispositivo(applicationContext) }
 
         setContent {
-            MaterialTheme {
+            StockFlowTheme {
                 // Al tocar un campo de texto la pantalla se desplaza para dejarlo centrado
                 CentrarCamposAlEscribir {
                     // Usuario que inició sesión (null = mostrar login). Se conserva al girar el teléfono

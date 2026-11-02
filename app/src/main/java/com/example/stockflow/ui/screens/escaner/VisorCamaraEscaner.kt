@@ -166,7 +166,7 @@ fun VisorCamaraEscaner(
         } else {
             Text(
                 text = "⚠️ Se requiere permiso de cámara para escanear",
-                color = Color.Red,
+                color = MaterialTheme.colorScheme.errorContainer,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(16.dp)
