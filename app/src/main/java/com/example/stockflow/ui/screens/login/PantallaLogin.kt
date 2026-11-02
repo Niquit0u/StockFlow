@@ -58,6 +58,14 @@ import androidx.compose.ui.unit.sp
 import com.example.stockflow.ui.theme.StockFlowTheme
 import kotlinx.coroutines.launch
 import com.example.stockflow.ui.componentes.visibleAlEscribir
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import com.example.stockflow.R
 
 /**
  * Pantalla de inicio de sesión, con la opción de crear una cuenta nueva.
@@ -161,15 +169,26 @@ fun PantallaLogin(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Título
-            Text(
-                text = if (modoCrearCuenta) "Crear cuenta" else "Bienvenido",
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 30.sp
-                ),
-                color = MaterialTheme.colorScheme.primary
+            // Marca: ícono del logo y el nombre con sus dos colores ("Stock" marino, "Flow" verde azulado)
+            Image(
+                painter = painterResource(R.drawable.logo_stockflow_icono),
+                contentDescription = null,
+                modifier = Modifier.height(96.dp)
             )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary)) { append("Stock ") }
+                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.secondary)) { append("Flow") }
+                },
+                style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+                // Lo lee TalkBack como el nombre de la app
+                modifier = Modifier.semantics { heading() }
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
                 text = if (modoCrearCuenta) {

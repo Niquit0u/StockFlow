@@ -23,6 +23,8 @@ import com.example.stockflow.ItemDescuento
 import com.example.stockflow.Producto
 import com.example.stockflow.formatearPrecio
 import com.example.stockflow.ui.componentes.visibleAlEscribir
+import com.example.stockflow.ui.componentes.TituloPantalla
+import com.example.stockflow.ui.componentes.coloresBarraTitulo
 
 @ExperimentalMaterial3Api
 @Composable
@@ -67,12 +69,9 @@ fun PantallaEscaner(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        if (modoDescuento) "Stock Flow - Vender" else "Stock Flow - Escáner de Código",
-                        fontWeight = FontWeight.Bold
-                    )
+                    TituloPantalla(titulo = if (modoDescuento) "Nueva venta" else "Escáner")
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                colors = coloresBarraTitulo()
             )
         }
     ) { padding ->
@@ -249,7 +248,7 @@ private fun ListaADescontar(
                         formatearPrecio(items.sumOf { it.subtotal ?: 0.0 }),
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.secondary
                     )
                 }
 

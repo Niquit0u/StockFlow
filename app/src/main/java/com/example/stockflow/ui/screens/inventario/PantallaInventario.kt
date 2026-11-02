@@ -61,6 +61,8 @@ import com.example.stockflow.ui.componentes.esFechaValida
 import java.text.SimpleDateFormat
 import java.util.Locale
 import com.example.stockflow.ui.componentes.visibleAlEscribir
+import com.example.stockflow.ui.componentes.TituloPantalla
+import com.example.stockflow.ui.componentes.coloresBarraTitulo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -432,18 +434,10 @@ fun PantallaAlertas(
 
                     } else {
 
-                        Text(
-                            text =
-                                if (
-                                    categoriaSeleccionada == null
-                                ) {
-                                    "Stock Flow - Inventario"
-                                } else {
-                                    categoriaSeleccionada!!
-                                },
-
-                            fontWeight =
-                                FontWeight.Bold
+                        // Dentro de una categoría el subtítulo indica de dónde se viene
+                        TituloPantalla(
+                            titulo = categoriaSeleccionada ?: "Inventario",
+                            subtitulo = if (categoriaSeleccionada == null) null else "Inventario"
                         )
                     }
                 },
@@ -516,9 +510,10 @@ fun PantallaAlertas(
                                 enfocarBusqueda = true
                             },
 
+                            // Verde azulado ("Flow"): resalta sobre la barra de título
                             colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
+                                containerColor = MaterialTheme.colorScheme.secondary,
+                                contentColor = MaterialTheme.colorScheme.onSecondary
                             ),
 
                             modifier = Modifier.padding(end = 4.dp)
@@ -533,14 +528,7 @@ fun PantallaAlertas(
                     }
                 },
 
-                colors =
-                    TopAppBarDefaults.topAppBarColors(
-
-                        containerColor =
-                            MaterialTheme
-                                .colorScheme
-                                .primaryContainer
-                    )
+                colors = coloresBarraTitulo()
             )
         }
 
@@ -1329,7 +1317,8 @@ fun TarjetaAgregarCategoria(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val colorBorde = MaterialTheme.colorScheme.primary
+    // Verde azulado de la marca: crear es la acción "positiva" de la pantalla
+    val colorBorde = MaterialTheme.colorScheme.secondary
 
     Row(
         modifier = modifier

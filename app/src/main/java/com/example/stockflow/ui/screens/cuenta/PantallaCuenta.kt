@@ -25,6 +25,8 @@ import com.example.stockflow.SesionUsuario
 import com.example.stockflow.UsuarioItem
 import kotlinx.coroutines.launch
 import com.example.stockflow.ui.componentes.visibleAlEscribir
+import com.example.stockflow.ui.componentes.TituloPantalla
+import com.example.stockflow.ui.componentes.coloresBarraTitulo
 
 /**
  * Pestaña "Cuenta": quién inició sesión y el botón para cerrarla.
@@ -47,8 +49,8 @@ fun PantallaCuenta(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Cuenta", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                title = { TituloPantalla(titulo = "Cuenta") },
+                colors = coloresBarraTitulo()
             )
         },
         floatingActionButton = {

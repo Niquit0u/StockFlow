@@ -25,6 +25,8 @@ import com.example.stockflow.formatearPrecio
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import com.example.stockflow.ui.componentes.TituloPantalla
+import com.example.stockflow.ui.componentes.coloresBarraTitulo
 
 /**
  * Historial de ventas registradas desde Escáner con "Vender".
@@ -45,13 +47,13 @@ fun PantallaHistorialVentas(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Historial de ventas", fontWeight = FontWeight.Bold) },
+                title = { TituloPantalla(titulo = "Historial de ventas") },
                 navigationIcon = {
                     IconButton(onClick = onVolver) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver al inventario")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                colors = coloresBarraTitulo()
             )
         }
     ) { padding ->
@@ -185,7 +187,8 @@ private fun TarjetaVenta(venta: VentaItem) {
                 Text(
                     text = formatearPrecio(venta.montoTotal),
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.secondary
                 )
                 Icon(
                     imageVector = if (expandida) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
