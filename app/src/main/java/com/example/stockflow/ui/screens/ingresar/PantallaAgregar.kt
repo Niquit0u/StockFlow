@@ -25,6 +25,8 @@ import com.example.stockflow.ui.componentes.SelectorCategoria
 import com.example.stockflow.ui.componentes.esFechaValida
 import com.example.stockflow.ui.screens.escaner.EscanerPantallaCompleta
 import com.example.stockflow.ui.componentes.visibleAlEscribir
+import com.example.stockflow.ui.componentes.TituloPantalla
+import com.example.stockflow.ui.componentes.coloresBarraTitulo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,8 +99,8 @@ fun PantallaAgregar(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Stock Flow - Registrar Ingreso FEFO", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                title = { TituloPantalla(titulo = "Ingresar stock") },
+                colors = coloresBarraTitulo()
             )
         }
     ) { padding ->
@@ -112,10 +114,11 @@ fun PantallaAgregar(
                 .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // El título ya está en la barra: acá solo se explica qué hacer
             Text(
-                text = "Ingreso de Mercadería",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold
+                text = "Escaneá o escribí el código del producto y completá los datos del lote que recibiste.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             // El texto de ayuda solo se agrega cuando hay algo que decir: si se pasa vacío,

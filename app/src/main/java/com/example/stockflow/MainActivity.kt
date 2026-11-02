@@ -40,6 +40,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import com.example.stockflow.ui.componentes.CentrarCamposAlEscribir
 import com.example.stockflow.ui.theme.StockFlowTheme
 import com.example.stockflow.ui.screens.login.PantallaLogin
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import androidx.compose.ui.graphics.luminance
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,6 +61,16 @@ class MainActivity : ComponentActivity() {
                 CentrarCamposAlEscribir {
                     // Usuario que inició sesión (null = mostrar login). Se conserva al girar el teléfono
                     var sesion by rememberSaveable(stateSaver = GuardadoSesion) { mutableStateOf<SesionUsuario?>(null) }
+
+                    // La hora y la batería se dibujan sobre la barra de título o, en el login,
+                    // sobre el fondo de la pantalla: se eligen íconos claros u oscuros según ese color
+                    val colorDetrasDeBarraEstado =
+                        if (sesion != null) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background
+                    val vista = LocalView.current
+                    SideEffect {
+                        WindowCompat.getInsetsController(window, vista).isAppearanceLightStatusBars =
+                            colorDetrasDeBarraEstado.luminance() > 0.5f
+                    }
                     // true mientras se busca la sesión guardada (pantalla vacía por un instante)
                     var restaurando by remember { mutableStateOf(true) }
 
