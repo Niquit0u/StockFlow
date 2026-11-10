@@ -4,10 +4,15 @@ import java.text.NumberFormat
 import java.util.Locale
 
 enum class EstadoSemaforo {
-    CRITICO,     // Rojo: Vencimiento inmediato
-    ADVERTENCIA, // Amarillo: Vencimiento próximo
+    CRITICO,     // Rojo: vence en 1 día o menos (o ya venció). No se puede vender
+    ADVERTENCIA, // Amarillo: vence en 2 a 14 días
     OPTIMO       // Verde: Buen estado
 }
+
+/** Último día (días que faltan) en que un lote todavía se puede vender: con menos queda en rojo y bloqueado. */
+const val DIAS_MINIMOS_PARA_VENDER = 2
+
+fun sePuedeVender(diasParaVencer: Int): Boolean = diasParaVencer >= DIAS_MINIMOS_PARA_VENDER
 
 data class LoteItem(
     val idLote: String,
@@ -28,7 +33,13 @@ data class Producto(
     val totalCantidad: Int,
     val lotes: List<LoteItem>,
     val precio: Double? = null // Precio de venta unitario (null si no tiene)
-)
+) {
+    // Lo vencido o a 1 día de vencer no se vende: solo cuentan los lotes con 2 días o más
+    val cantidadVendible: Int get() = lotes.filter { sePuedeVender(it.diasParaVencer) }.sumOf { it.cantidadActual }
+    val cantidadNoVendible: Int get() = totalCantidad - cantidadVendible
+    // true si todo su stock ya pasó la fecha (para el mensaje: "vencido" o "por vencer")
+    val todoVencido: Boolean get() = lotes.all { it.diasParaVencer < 0 }
+}
 
 // Producto escaneado que se va a descontar del stock
 data class ItemDescuento(

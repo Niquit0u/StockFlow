@@ -3,6 +3,7 @@ package com.example.stockflow.data.repository
 import androidx.room.withTransaction
 import com.example.stockflow.CambiosLote
 import com.example.stockflow.EstadoSemaforo
+import com.example.stockflow.sePuedeVender
 import com.example.stockflow.NOMBRE_SIN_CATEGORIA
 import com.example.stockflow.ItemDescuento
 import com.example.stockflow.LoteItem
@@ -97,13 +98,14 @@ class InventarioRepository(
      * en una sola transacción: si algo falla no se guarda nada.
      * - Crea la venta (fecha, monto total y usuario que la hizo) y un detalle por producto con su subtotal.
      * - Descuenta por FEFO (primero los lotes que vencen antes) y registra un movimiento de SALIDA por lote.
+     *   Los lotes vencidos o a 1 día de vencer (en rojo) no se venden: se saltean.
      * Los lotes que quedan en 0 no se borran (sus movimientos los referencian); dejan de mostrarse.
      * Productos sin precio cargado suman $0 al total.
      *
      * También queda en el historial, con cada producto vendido.
      *
      * @return el id de la venta creada.
-     * @throws IllegalStateException si un producto no existe o no tiene stock suficiente.
+     * @throws IllegalStateException si un producto no existe o no tiene stock sin vencer suficiente.
      */
     suspend fun descontarStock(items: List<ItemDescuento>): Long = database.withTransaction {
         val total = items.sumOf { it.subtotal ?: 0.0 }
@@ -128,9 +130,10 @@ class InventarioRepository(
                     subtotal = item.subtotal ?: 0.0
                 )
             )
-            val lotes = loteDao.obtenerPorProducto(producto.idProducto).filter { it.cantidadActual > 0 }
+            val lotes = loteDao.obtenerPorProducto(producto.idProducto)
+                .filter { it.cantidadActual > 0 && sePuedeVender(diasHasta(it.fechaVencimiento)) }
             check(lotes.sumOf { it.cantidadActual } >= item.cantidad) {
-                "No hay stock suficiente de ${item.nombreProducto}"
+                "No hay stock vendible suficiente de \"${item.nombreProducto}\" (lo vencido o por vencer no se vende)"
             }
 
             var restante = item.cantidad
@@ -316,11 +319,10 @@ class InventarioRepository(
         /** Código que pone PantallaAgregar cuando el usuario deja el campo vacío; no es un producto real. */
         private const val CODIGO_GENERICO = "779000000000"
 
-        private const val DIAS_CRITICO = 7
-        private const val DIAS_ADVERTENCIA = 15
+        private const val DIAS_ADVERTENCIA = 14
 
         fun estadoPara(diasParaVencer: Int): EstadoSemaforo = when {
-            diasParaVencer <= DIAS_CRITICO -> EstadoSemaforo.CRITICO
+            !sePuedeVender(diasParaVencer) -> EstadoSemaforo.CRITICO
             diasParaVencer <= DIAS_ADVERTENCIA -> EstadoSemaforo.ADVERTENCIA
             else -> EstadoSemaforo.OPTIMO
         }
