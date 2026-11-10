@@ -70,6 +70,13 @@ enum class TipoEvento(val nombreVisible: String) {
     CAMBIO("Cambio en inventario")
 }
 
+// Un producto del ranking de más vendidos del mes (pantalla Estadísticas)
+data class ProductoMasVendido(
+    val nombre: String,
+    val cantidad: Int, // unidades vendidas
+    val total: Double  // plata que entró por ese producto
+)
+
 // Entrada del historial del local
 data class EventoItem(
     val idEvento: Int,
