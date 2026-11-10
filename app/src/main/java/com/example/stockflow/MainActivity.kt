@@ -43,6 +43,31 @@ import com.example.stockflow.ui.screens.login.PantallaLogin
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.graphics.luminance
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.example.stockflow.notificaciones.AvisosVencimiento
+
+/**
+ * En Android 13+ las notificaciones necesitan permiso: se pide una vez, al entrar con sesión.
+ * Si lo concede, se revisan los vencimientos en el momento para no esperar a la revisión diaria.
+ */
+@Composable
+private fun PedirPermisoNotificaciones() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+    val context = LocalContext.current
+    val lanzador = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { concedido ->
+        if (concedido) AvisosVencimiento.revisarAhora(context.applicationContext)
+    }
+    LaunchedEffect(Unit) {
+        val concedido = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!concedido) lanzador.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,6 +79,8 @@ class MainActivity : ComponentActivity() {
         val sesionGuardada = SesionRepository(this, usuarios)
 
         lifecycleScope.launch { dispositivos.registrarEsteDispositivo(applicationContext) }
+        // Revisión diaria de vencimientos (y una ahora, por si hay avisos pendientes)
+        AvisosVencimiento.programar(applicationContext)
 
         setContent {
             StockFlowTheme {
@@ -77,6 +104,8 @@ class MainActivity : ComponentActivity() {
                     // Inicia o cierra sesión y lo recuerda para la próxima vez que se abra la app
                     fun cambiarSesion(nueva: SesionUsuario?) {
                         if (nueva != null) sesionGuardada.guardar(nueva) else sesionGuardada.borrar()
+                        // Al entrar se revisan los vencimientos del local de este usuario
+                        if (nueva != null) AvisosVencimiento.revisarAhora(applicationContext)
                         sesion = nueva
                     }
 
@@ -91,6 +120,7 @@ class MainActivity : ComponentActivity() {
                     val sesionActual = sesion
                     when {
                         sesionActual != null -> {
+                            PedirPermisoNotificaciones()
                             // Inventario e historial trabajan solo con el local de la sesión.
                             // El inventario además sabe quién es el usuario, para anotarlo en el historial
                             val inventario = remember(sesionActual.idLocal) {

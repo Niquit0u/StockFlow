@@ -44,8 +44,11 @@ fun PantallaEscaner(
     var productoParaElegir by remember { mutableStateOf<Producto?>(null) }
     var productoParaCantidad by remember { mutableStateOf<Producto?>(null) }
     var confirmarDescuento by remember { mutableStateOf(false) }
+    // Producto de la lista que no se puede vender por estar vencido o a 1 día de vencer (se avisa al terminar)
+    var itemVencido by remember { mutableStateOf<ItemDescuento?>(null) }
 
-    val hayDialogoAbierto = productoParaElegir != null || productoParaCantidad != null || confirmarDescuento
+    val hayDialogoAbierto =
+        productoParaElegir != null || productoParaCantidad != null || confirmarDescuento || itemVencido != null
 
     fun cantidadEnLista(codigo: String) =
         itemsADescontar.filter { it.codigoBarra == codigo }.sumOf { it.cantidad }
@@ -57,6 +60,20 @@ fun PantallaEscaner(
                 Toast.makeText(context, "Producto $codigo no registrado", Toast.LENGTH_SHORT).show()
             modoDescuento -> productoParaCantidad = producto
             else -> productoParaElegir = producto
+        }
+    }
+
+    // Unidades de ese producto que se pueden vender (las que vencen en 2 días o más)
+    fun vendibles(item: ItemDescuento) = buscarProducto(item.codigoBarra)?.cantidadVendible ?: 0
+
+    fun esVendible(item: ItemDescuento) = vendibles(item) >= item.cantidad
+
+    // Antes de confirmar se revisa la lista: si hay algo vencido se avisa primero, uno por uno
+    fun intentarTerminarVenta() {
+        val vencido = itemsADescontar.firstOrNull { !esVendible(it) }
+        when {
+            vencido != null -> itemVencido = vencido
+            itemsADescontar.isNotEmpty() -> confirmarDescuento = true
         }
     }
 
@@ -107,11 +124,12 @@ fun PantallaEscaner(
             if (modoDescuento) {
                 ListaADescontar(
                     items = itemsADescontar,
+                    esVencido = { !esVendible(it) },
                     onQuitar = { itemsADescontar.remove(it) }
                 )
 
                 Button(
-                    onClick = { confirmarDescuento = true },
+                    onClick = ::intentarTerminarVenta,
                     enabled = itemsADescontar.isNotEmpty(),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp)
@@ -154,9 +172,12 @@ fun PantallaEscaner(
     }
 
     productoParaCantidad?.let { producto ->
+        // Si queda algo vendible, solo eso se puede agregar. Si no queda nada se deja agregar igual
+        // y se avisa al terminar la venta, con la opción de sacarlo de la lista
+        val vendible = if (producto.cantidadVendible > 0) producto.cantidadVendible else producto.totalCantidad
         DialogoCantidad(
             producto = producto,
-            disponible = producto.totalCantidad - cantidadEnLista(producto.codigoBarra),
+            disponible = vendible - cantidadEnLista(producto.codigoBarra),
             onConfirmar = { cantidad ->
                 val indice = itemsADescontar.indexOfFirst { it.codigoBarra == producto.codigoBarra }
                 if (indice >= 0) {
@@ -171,6 +192,38 @@ fun PantallaEscaner(
                 productoParaCantidad = null
             },
             onCancelar = { productoParaCantidad = null }
+        )
+    }
+
+    itemVencido?.let { item ->
+        val quedan = vendibles(item)
+        val vencido = buscarProducto(item.codigoBarra)?.todoVencido ?: true
+        AlertDialog(
+            onDismissRequest = { itemVencido = null },
+            title = {
+                Text("\"${item.nombreProducto}\" " + if (vencido) "está vencido" else "está por vencer")
+            },
+            text = {
+                Text(
+                    when {
+                        quedan > 0 -> "Solo quedan $quedan u. que se pueden vender y en la venta hay ${item.cantidad}. " +
+                            "Lo vencido o a 1 día de vencer no se puede vender."
+                        vencido -> "No se puede vender: todo su stock está vencido."
+                        else -> "No se puede vender: vence en 1 día o menos."
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    itemsADescontar.remove(item)
+                    itemVencido = null
+                    // Sigue con el próximo vencido, o pasa a confirmar si ya no queda ninguno
+                    intentarTerminarVenta()
+                }) { Text("Eliminar de la venta") }
+            },
+            dismissButton = {
+                TextButton(onClick = { itemVencido = null }) { Text("Volver") }
+            }
         )
     }
 
@@ -203,6 +256,7 @@ fun PantallaEscaner(
 @Composable
 private fun ListaADescontar(
     items: List<ItemDescuento>,
+    esVencido: (ItemDescuento) -> Boolean,
     onQuitar: (ItemDescuento) -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -225,6 +279,14 @@ private fun ListaADescontar(
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        if (esVencido(item)) {
+                            Text(
+                                "Vencido o por vencer: no se puede vender",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Text("x${item.cantidad}", fontWeight = FontWeight.Bold)
@@ -282,6 +344,16 @@ private fun DialogoCantidad(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Disponible para vender: $disponible u.")
+                when {
+                    producto.cantidadVendible == 0 -> Text(
+                        "Está vencido o vence en 1 día o menos: no se va a poder vender",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    producto.cantidadNoVendible > 0 -> Text(
+                        "${producto.cantidadNoVendible} u. vencidas o a 1 día de vencer no se pueden vender",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
                 OutlinedTextField(
                     value = texto,
                     onValueChange = { nuevo -> texto = nuevo.filter { it.isDigit() } },

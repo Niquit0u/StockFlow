@@ -84,7 +84,7 @@ object Semaforo {
         @Composable get() = if (enTemaOscuro) Color(0xFFFF7A7A) else Color(0xFFC62828)
 
     val advertencia: Color
-        @Composable get() = if (enTemaOscuro) Color(0xFFF2A93B) else Color(0xFF975600)
+        @Composable get() = if (enTemaOscuro) Color(0xFFF2C94C) else Color(0xFFB38600)
 
     val optimo: Color
         @Composable get() = if (enTemaOscuro) Color(0xFF4CC38A) else Color(0xFF1E7A4C)

@@ -74,4 +74,7 @@ dependencies {
     implementation(libs.androidx.room.ktx)
 
     ksp(libs.androidx.room.compiler)
+
+    // Revisión diaria de vencimientos en segundo plano (notificaciones)
+    implementation(libs.androidx.work.runtime.ktx)
 }

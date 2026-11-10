@@ -37,6 +37,18 @@ interface LoteDao {
     )
     fun observarConProducto(idLocal: Int): Flow<List<LoteConProducto>>
 
+    // Lotes con stock de un local, para los avisos de vencimiento (se leen una vez, en segundo plano)
+    @Query(
+        """
+        SELECT lotes.*, productos.nombre, productos.codigoBarra, categorias.nombre AS categoria, productos.precioVenta
+        FROM lotes
+        INNER JOIN productos ON productos.idProducto = lotes.idProducto
+        INNER JOIN categorias ON categorias.idCategoria = productos.idCategoria
+        WHERE productos.idLocal = :idLocal AND lotes.cantidadActual > 0
+        """
+    )
+    suspend fun obtenerConProducto(idLocal: Int): List<LoteConProducto>
+
     @Update
     suspend fun actualizar(lote: LoteEntity)
 
