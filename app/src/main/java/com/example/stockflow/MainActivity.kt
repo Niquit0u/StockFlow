@@ -268,8 +268,12 @@ fun AplicacionInteractivaStockFlow(
                         { categoria ->
                             scope.launch {
                                 val mensaje = when (val resultado = categorias.eliminar(categoria.idCategoria)) {
-                                    is CategoriaRepository.ResultadoEliminar.Eliminada ->
-                                        "Categoría ${categoria.nombre} eliminada. Sus productos pasaron a ${resultado.destino}"
+                                    CategoriaRepository.ResultadoEliminar.Eliminada ->
+                                        "Categoría ${categoria.nombre} eliminada"
+                                    is CategoriaRepository.ResultadoEliminar.TieneProductos ->
+                                        "No se puede eliminar \"${categoria.nombre}\": tiene ${resultado.cantidad} " +
+                                            (if (resultado.cantidad == 1) "producto" else "productos") +
+                                            " dentro. Movelos o eliminalos primero"
                                     CategoriaRepository.ResultadoEliminar.EsLaUltima ->
                                         "Tiene que quedar al menos una categoría"
                                 }

@@ -19,7 +19,7 @@ import androidx.room.PrimaryKey
             entity = CategoriaEntity::class,
             parentColumns = ["idCategoria"],
             childColumns = ["idCategoria"],
-            // Una categoría con productos no se borra: antes se mueven a otra (CategoriaRepository.eliminar)
+            // Una categoría con productos no se borra: primero hay que vaciarla (CategoriaRepository.eliminar)
             onDelete = ForeignKey.RESTRICT
         )
     ],

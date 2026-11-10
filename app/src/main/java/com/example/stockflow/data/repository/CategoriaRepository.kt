@@ -14,8 +14,9 @@ class CategoriaRepository(private val database: StockFlowDatabase, private val i
     private val categoriaDao = database.categoriaDao()
 
     sealed interface ResultadoEliminar {
-        /** Se eliminó; sus productos pasaron a [destino]. */
-        data class Eliminada(val destino: String) : ResultadoEliminar
+        data object Eliminada : ResultadoEliminar
+        /** Tiene productos adentro: hay que moverlos o borrarlos antes. */
+        data class TieneProductos(val cantidad: Int) : ResultadoEliminar
         /** Es la única categoría del local: no se puede quedar sin ninguna. */
         data object EsLaUltima : ResultadoEliminar
     }
@@ -51,21 +52,16 @@ class CategoriaRepository(private val database: StockFlowDatabase, private val i
         }
     }
 
-    /**
-     * Elimina la categoría. Sus productos pasan a "Sin categoría" (o, si esa es la que se borra o no existe,
-     * a la primera que quede). No se puede borrar la última.
-     */
+    /** Elimina la categoría. No se puede borrar si tiene productos ni si es la última. */
     suspend fun eliminar(idCategoria: Int): ResultadoEliminar = database.withTransaction {
         val todas = categoriaDao.obtenerDelLocal(idLocal)
         val aBorrar = todas.firstOrNull { it.idCategoria == idCategoria }
             ?: throw IllegalArgumentException("La categoría ya no existe")
-        val restantes = todas - aBorrar
-        if (restantes.isEmpty()) return@withTransaction ResultadoEliminar.EsLaUltima
+        val cantidad = categoriaDao.contarProductos(aBorrar.idCategoria)
+        if (cantidad > 0) return@withTransaction ResultadoEliminar.TieneProductos(cantidad)
+        if (todas.size <= 1) return@withTransaction ResultadoEliminar.EsLaUltima
 
-        val destino = restantes.firstOrNull { it.nombre.equals(NOMBRE_SIN_CATEGORIA, ignoreCase = true) }
-            ?: restantes.first()
-        categoriaDao.moverProductos(desde = aBorrar.idCategoria, hacia = destino.idCategoria)
         categoriaDao.eliminarPorId(aBorrar.idCategoria)
-        ResultadoEliminar.Eliminada(destino.nombre)
+        ResultadoEliminar.Eliminada
     }
 }
