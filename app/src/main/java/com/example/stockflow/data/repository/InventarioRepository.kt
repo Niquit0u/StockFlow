@@ -329,7 +329,7 @@ class InventarioRepository(
             codigo.trim().takeUnless { it.isEmpty() || it == CODIGO_GENERICO }
 
         // SimpleDateFormat no es thread-safe: una instancia por uso
-        private fun formatoFecha() = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply { isLenient = false }
+        fun formatoFecha() = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply { isLenient = false }
 
         fun parsearFecha(texto: String): Long? = try {
             formatoFecha().parse(texto.trim())?.time?.let(::inicioDelDia)
@@ -345,7 +345,8 @@ class InventarioRepository(
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
 
-        private fun diasHasta(vencimiento: Long): Int {
+        /** Días que faltan para [vencimiento] (0 = vence hoy, negativo = ya venció). */
+        fun diasHasta(vencimiento: Long): Int {
             val diferencia = inicioDelDia(vencimiento) - inicioDelDia(System.currentTimeMillis())
             // round: los cambios de horario de verano pueden dejar días de 23 o 25 horas
             return Math.round(diferencia / TimeUnit.DAYS.toMillis(1).toDouble()).toInt()

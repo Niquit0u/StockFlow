@@ -45,6 +45,8 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.PhotoCamera
+import com.example.stockflow.ui.screens.escaner.EscanerPantallaCompleta
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.focus.FocusRequester
@@ -1829,6 +1831,7 @@ fun DialogoEditarLote(
     var nombre by remember { mutableStateOf(lote.nombreProducto) }
     var categoria by remember { mutableStateOf(lote.categoria) }
     var codigoBarra by remember { mutableStateOf(lote.codigoBarra) }
+    var mostrarEscaner by remember { mutableStateOf(false) }
     var cantidad by remember { mutableStateOf(lote.cantidadActual.toString()) }
     var precio by remember { mutableStateOf(lote.precio?.toString().orEmpty()) }
     var fecha by remember { mutableStateOf(lote.fechaVencimiento) }
@@ -1841,6 +1844,17 @@ fun DialogoEditarLote(
     val fechaValida = esFechaValida(fecha)
 
     val todoValido = nombre.isNotBlank() && cantidadValida != null && precioValido && fechaValida
+
+    // El código escaneado reemplaza al que tenía el producto
+    if (mostrarEscaner) {
+        EscanerPantallaCompleta(
+            onCodigoEscaneado = { codigo ->
+                codigoBarra = codigo.trim()
+                mostrarEscaner = false
+            },
+            onCerrar = { mostrarEscaner = false }
+        )
+    }
 
     AlertDialog(
 
@@ -1870,6 +1884,16 @@ fun DialogoEditarLote(
                     value = codigoBarra,
                     onValueChange = { codigoBarra = it.trim() },
                     label = { Text("Código de Barras (EAN/QR)") },
+                    // Botón para escanear con la cámara, igual que en Ingresar Stock
+                    trailingIcon = {
+                        IconButton(onClick = { mostrarEscaner = true }) {
+                            Icon(
+                                imageVector = Icons.Default.PhotoCamera,
+                                contentDescription = "Escanear código de barras",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    },
                     supportingText = {
                         if (codigoBarra.isBlank()) Text("Vacío = producto sin código")
                     },
