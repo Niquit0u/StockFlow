@@ -6,4 +6,6 @@
     <color name="fondo">#FFF5F7F9</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <!-- Fondo del ícono de la app -->
+    <color name="ic_launcher_background">#FFFFFFFF</color>
 </resources>
