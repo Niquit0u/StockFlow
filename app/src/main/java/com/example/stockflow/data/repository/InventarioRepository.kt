@@ -173,6 +173,47 @@ class InventarioRepository(
      *
      * @throws IllegalArgumentException si los datos no son válidos o el código ya es de otro producto.
      */
+    /**
+     * Elimina los lotes elegidos desde Inventario: quedan en 0 unidades y dejan de mostrarse
+     * (no se borran de la base porque sus movimientos y ventas los referencian).
+     * Registra un movimiento de SALIDA por lo que tenía cada uno y lo anota en el historial.
+     *
+     * @return las unidades que se dieron de baja en total.
+     * @throws IllegalArgumentException si algún lote no existe o es de otro local.
+     */
+    suspend fun eliminarLotes(idsLotes: List<Int>): Int = database.withTransaction {
+        var unidades = 0
+        // Detalle para el historial, agrupado por producto
+        val detallePorProducto = linkedMapOf<String, MutableList<String>>()
+
+        for (idLote in idsLotes.distinct()) {
+            val lote = loteDao.obtenerPorId(idLote)
+                ?: throw IllegalArgumentException("El lote $idLote ya no existe")
+            val producto = productoDao.obtenerPorId(lote.idProducto)
+                ?.takeIf { it.idLocal == idLocal }
+                ?: throw IllegalArgumentException("El lote $idLote no es de este local")
+            if (lote.cantidadActual <= 0) continue
+
+            loteDao.actualizar(lote.copy(cantidadActual = 0))
+            movimientoDao.insertar(
+                MovimientoEntity(tipo = MovimientoEntity.TIPO_SALIDA, idLote = idLote, cantidad = lote.cantidadActual)
+            )
+            unidades += lote.cantidadActual
+            detallePorProducto.getOrPut(producto.nombre) { mutableListOf() }.add(
+                "Lote #$idLote: ${lote.cantidadActual} u. (vencía ${formatoFecha().format(lote.fechaVencimiento)})"
+            )
+        }
+
+        detallePorProducto.forEach { (nombre, detalle) ->
+            registrarEnHistorial(
+                tipo = TipoEvento.CAMBIO,
+                titulo = if (detalle.size == 1) "Lote eliminado de $nombre" else "${detalle.size} lotes eliminados de $nombre",
+                detalle = detalle
+            )
+        }
+        unidades
+    }
+
     suspend fun editarLote(cambios: CambiosLote) {
         val vencimiento = parsearFecha(cambios.fechaVencimiento)
             ?: throw IllegalArgumentException("Fecha inválida: '${cambios.fechaVencimiento}'. Usá DD/MM/AAAA")

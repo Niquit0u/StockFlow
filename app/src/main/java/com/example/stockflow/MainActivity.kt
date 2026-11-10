@@ -332,6 +332,18 @@ fun AplicacionInteractivaStockFlow(
                     },
                     lotes = listaLotes,
                     busquedaInicial = busquedaInventario,
+                    // Eliminar varios lotes de un producto: los mismos roles que pueden editarlos
+                    onEliminarLotes = if (!rol.puedeEditarInventario) null else { ids ->
+                        scope.launch {
+                            try {
+                                val unidades = inventario.eliminarLotes(ids)
+                                val texto = if (ids.size == 1) "1 lote eliminado" else "${ids.size} lotes eliminados"
+                                Toast.makeText(context, "$texto ($unidades u.)", Toast.LENGTH_SHORT).show()
+                            } catch (e: IllegalArgumentException) {
+                                Toast.makeText(context, e.message, Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    },
                     onEditarLote = if (!rol.puedeEditarInventario) null else { cambios ->
                         scope.launch {
                             try {
