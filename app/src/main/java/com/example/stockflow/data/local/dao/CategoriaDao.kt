@@ -32,9 +32,9 @@ interface CategoriaDao {
     @Query("SELECT * FROM categorias WHERE idCategoria = :idCategoria")
     suspend fun obtenerPorId(idCategoria: Int): CategoriaEntity?
 
-    // Antes de borrar una categoría sus productos pasan a otra
-    @Query("UPDATE productos SET idCategoria = :hacia WHERE idCategoria = :desde")
-    suspend fun moverProductos(desde: Int, hacia: Int): Int
+    // Una categoría con productos no se puede borrar
+    @Query("SELECT COUNT(*) FROM productos WHERE idCategoria = :idCategoria")
+    suspend fun contarProductos(idCategoria: Int): Int
 
     @Query("DELETE FROM categorias WHERE idCategoria = :idCategoria")
     suspend fun eliminarPorId(idCategoria: Int)
