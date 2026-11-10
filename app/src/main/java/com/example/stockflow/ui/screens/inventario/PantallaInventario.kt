@@ -74,6 +74,8 @@ fun PantallaAlertas(
     busquedaInicial: String = "", // Texto a buscar al llegar desde el escáner
     // Guarda los cambios hechos a un lote con el lápiz; null = sin permiso (no se muestra el lápiz)
     onEditarLote: ((CambiosLote) -> Unit)? = null,
+    // null = sin permiso: no se muestra el tacho en los lotes
+    onEliminarLotes: ((List<Int>) -> Unit)? = null,
     // Abre el historial (ventas, ingresos y cambios); null = sin permiso (no se muestra el botón)
     onAbrirHistorial: (() -> Unit)? = null,
     onAbrirEstadisticas: (() -> Unit)? = null,
@@ -981,6 +983,11 @@ fun PantallaAlertas(
                                         { loteEnEdicion = it }
                                     } else {
                                         null
+                                    },
+
+                                onEliminarLotes =
+                                    onEliminarLotes?.let { eliminar ->
+                                        { lotes -> eliminar(lotes.mapNotNull { it.idLote.toIntOrNull() }) }
                                     }
                             )
                         }
@@ -1471,7 +1478,10 @@ fun TarjetaProductoExpandible(
     expandidoInicial: Boolean = false,
 
     // null = sin permiso de edición
-    onEditarLote: ((LoteItem) -> Unit)? = null
+    onEditarLote: ((LoteItem) -> Unit)? = null,
+
+    // null = sin permiso: no aparece el tacho
+    onEliminarLotes: ((List<LoteItem>) -> Unit)? = null
 
 ) {
 
@@ -1481,6 +1491,20 @@ fun TarjetaProductoExpandible(
         mutableStateOf(
             expandidoInicial
         )
+    }
+
+    // Modo eliminar: cada lote muestra una casilla para elegir cuáles borrar
+    var modoEliminar by remember(producto.nombreProducto) { mutableStateOf(false) }
+    var seleccionados by remember(producto.nombreProducto) { mutableStateOf(setOf<String>()) }
+    var confirmarEliminar by remember { mutableStateOf(false) }
+
+    // Si cambian los lotes (por ejemplo, después de eliminar) se olvidan los que ya no están
+    val idsActuales = producto.lotes.map { it.idLote }.toSet()
+    if (!idsActuales.containsAll(seleccionados)) seleccionados = seleccionados intersect idsActuales
+
+    fun salirDelModoEliminar() {
+        modoEliminar = false
+        seleccionados = emptySet()
     }
 
     LaunchedEffect(
@@ -1642,22 +1666,39 @@ fun TarjetaProductoExpandible(
                             )
                     )
 
-                    Text(
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
 
-                        text =
-                            "Detalle de Lotes:",
+                        Text(
 
-                        fontSize =
-                            12.sp,
+                            text =
+                                if (modoEliminar) "Elegí los lotes a eliminar:" else "Detalle de Lotes:",
 
-                        fontWeight =
-                            FontWeight.Bold,
+                            fontSize =
+                                12.sp,
 
-                        color =
-                            MaterialTheme
-                                .colorScheme
-                                .primary
-                    )
+                            fontWeight =
+                                FontWeight.Bold,
+
+                            color =
+                                if (modoEliminar) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.primary,
+
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        // Tacho rojo como el de categorías; activo, se vuelve "Cancelar" para salir sin borrar
+                        if (onEliminarLotes != null) {
+                            BotonEliminarLotes(
+                                activo = modoEliminar,
+                                onClick = {
+                                    if (modoEliminar) salirDelModoEliminar() else modoEliminar = true
+                                }
+                            )
+                        }
+                    }
 
                     producto.lotes.forEach { lote ->
 
@@ -1665,15 +1706,118 @@ fun TarjetaProductoExpandible(
                             lote = lote,
                             onEditar = onEditarLote?.let { editar ->
                                 { editar(lote) }
+                            },
+                            modoSeleccion = modoEliminar,
+                            seleccionado = lote.idLote in seleccionados,
+                            onSeleccionar = {
+                                seleccionados =
+                                    if (lote.idLote in seleccionados) seleccionados - lote.idLote
+                                    else seleccionados + lote.idLote
                             }
                         )
+                    }
+
+                    if (modoEliminar) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    seleccionados =
+                                        if (seleccionados.size == producto.lotes.size) emptySet() else idsActuales
+                                }
+                            ) {
+                                Text(if (seleccionados.size == producto.lotes.size) "Ninguno" else "Todos")
+                            }
+                            Button(
+                                onClick = { confirmarEliminar = true },
+                                enabled = seleccionados.isNotEmpty(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
+                                )
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Eliminar (${seleccionados.size})")
+                            }
+                        }
                     }
                 }
             }
         }
     }
+
+    if (confirmarEliminar && onEliminarLotes != null) {
+        DialogoEliminarLotes(
+            producto = producto,
+            lotes = producto.lotes.filter { it.idLote in seleccionados },
+            onConfirmar = {
+                onEliminarLotes(producto.lotes.filter { it.idLote in seleccionados })
+                confirmarEliminar = false
+                salirDelModoEliminar()
+            },
+            onCancelar = { confirmarEliminar = false }
+        )
+    }
 }
 
+
+/** Confirmación antes de eliminar los lotes elegidos de un producto. */
+@Composable
+private fun DialogoEliminarLotes(
+    producto: Producto,
+    lotes: List<LoteItem>,
+    onConfirmar: () -> Unit,
+    onCancelar: () -> Unit
+) {
+    val unidades = lotes.sumOf { it.cantidadActual }
+    AlertDialog(
+        onDismissRequest = onCancelar,
+        icon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+        title = {
+            Text(if (lotes.size == 1) "¿Eliminar 1 lote?" else "¿Eliminar ${lotes.size} lotes?")
+        },
+        text = {
+            Text(
+                "Se van a dar de baja $unidades u. de \"${producto.nombreProducto}\":\n" +
+                    lotes.joinToString("\n") { "• Lote ${it.idLote}: ${it.cantidadActual} u., vence ${it.fechaVencimiento}" } +
+                    "\n\nQueda anotado en el historial. No se puede deshacer."
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirmar,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+            ) { Text("Eliminar") }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancelar) { Text("Cancelar") }
+        }
+    )
+}
+
+/** Tacho para entrar al modo de eliminar lotes (rojo, como el de categorías). Activo muestra "Cancelar". */
+@Composable
+private fun BotonEliminarLotes(activo: Boolean, onClick: () -> Unit) {
+    if (activo) {
+        TextButton(onClick = onClick) {
+            Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("Cancelar")
+        }
+    } else {
+        IconButton(onClick = onClick) {
+            Icon(
+                Icons.Default.Delete,
+                contentDescription = "Eliminar lotes",
+                tint = MaterialTheme.colorScheme.error
+            )
+        }
+    }
+}
 
 /*
  * ------------------------------------------------
@@ -1687,7 +1831,12 @@ fun FilaDetalleLote(
     lote: LoteItem,
 
     // null = sin permiso: no se muestra el lápiz
-    onEditar: (() -> Unit)? = null
+    onEditar: (() -> Unit)? = null,
+
+    // Modo eliminar: en lugar del lápiz va una casilla y toda la fila la marca o desmarca
+    modoSeleccion: Boolean = false,
+    seleccionado: Boolean = false,
+    onSeleccionar: () -> Unit = {}
 
 ) {
 
@@ -1709,11 +1858,12 @@ fun FilaDetalleLote(
 
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
             .background(
-                MaterialTheme.colorScheme.surfaceContainerHigh,
-                shape =
-                    RoundedCornerShape(8.dp)
+                if (modoSeleccion && seleccionado) MaterialTheme.colorScheme.errorContainer
+                else MaterialTheme.colorScheme.surfaceContainerHigh
             )
+            .then(if (modoSeleccion) Modifier.clickable(onClick = onSeleccionar) else Modifier)
             .padding(10.dp),
 
         verticalAlignment =
@@ -1803,7 +1953,15 @@ fun FilaDetalleLote(
             )
         }
 
-        if (onEditar != null) {
+        if (modoSeleccion) {
+
+            Checkbox(
+                checked = seleccionado,
+                onCheckedChange = { onSeleccionar() },
+                colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.error)
+            )
+
+        } else if (onEditar != null) {
 
             IconButton(
                 onClick = onEditar
