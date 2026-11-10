@@ -14,6 +14,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
@@ -75,6 +76,7 @@ fun PantallaAlertas(
     onEditarLote: ((CambiosLote) -> Unit)? = null,
     // Abre el historial (ventas, ingresos y cambios); null = sin permiso (no se muestra el botón)
     onAbrirHistorial: (() -> Unit)? = null,
+    onAbrirEstadisticas: (() -> Unit)? = null,
     // Categorías del local (siempre hay al menos una)
     categorias: List<CategoriaItem> = emptyList(),
     // Crea una categoría; devuelve null si se creó o el error para mostrar. null = sin permiso
@@ -484,6 +486,23 @@ fun PantallaAlertas(
                 },
 
                 actions = {
+
+                    // Estadísticas: los más vendidos del mes (se oculta mientras se busca, como el historial)
+                    if (!mostrarBusqueda && onAbrirEstadisticas != null) {
+
+                        IconButton(
+                            onClick = onAbrirEstadisticas
+                        ) {
+
+                            Icon(
+                                imageVector =
+                                    Icons.AutoMirrored.Filled.ShowChart,
+
+                                contentDescription =
+                                    "Estadísticas"
+                            )
+                        }
+                    }
 
                     // Historial (se oculta mientras se busca, para dejar lugar al buscador)
                     if (!mostrarBusqueda && onAbrirHistorial != null) {

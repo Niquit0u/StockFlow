@@ -30,6 +30,8 @@ import com.example.stockflow.data.repository.InventarioRepository
 import com.example.stockflow.data.repository.SesionRepository
 import com.example.stockflow.data.repository.UsuarioRepository
 import com.example.stockflow.data.repository.HistorialRepository
+import com.example.stockflow.data.repository.EstadisticasRepository
+import com.example.stockflow.ui.screens.estadisticas.PantallaEstadisticas
 import com.example.stockflow.ui.screens.historial.PantallaHistorial
 import androidx.lifecycle.lifecycleScope
 import com.example.stockflow.ui.screens.escaner.PantallaEscaner
@@ -226,6 +228,14 @@ fun AplicacionInteractivaStockFlow(
     var mostrarHistorial by remember { mutableStateOf(false) }
     val eventosHistorial by remember(historial) { historial.observar() }.collectAsState(initial = emptyList())
 
+    // Estadísticas (más vendidos del mes), también dentro de la pestaña Inventario
+    var mostrarEstadisticas by remember { mutableStateOf(false) }
+    val estadisticas = remember(sesion.idLocal) {
+        EstadisticasRepository(StockFlowDatabase.getDatabase(context).detalleVentaDao(), sesion.idLocal)
+    }
+    val masVendidosDelMes by remember(estadisticas) { estadisticas.observarMasVendidosDelMes() }
+        .collectAsState(initial = emptyList())
+
     // Texto que el escáner manda a buscar en la pantalla de Inventario (opción "Buscar")
     var busquedaInventario by remember { mutableStateOf("") }
 
@@ -246,6 +256,7 @@ fun AplicacionInteractivaStockFlow(
     fun cambiarPestaña(pestaña: Seccion) {
         busquedaInventario = ""
         mostrarHistorial = false
+        mostrarEstadisticas = false
         pestañaSeleccionada = pestaña
     }
 
@@ -280,8 +291,14 @@ fun AplicacionInteractivaStockFlow(
                         eventos = eventosHistorial,
                         onVolver = { mostrarHistorial = false }
                     )
+                } else if (mostrarEstadisticas) {
+                    PantallaEstadisticas(
+                        masVendidos = masVendidosDelMes,
+                        onVolver = { mostrarEstadisticas = false }
+                    )
                 } else PantallaAlertas(
                     onAbrirHistorial = { mostrarHistorial = true },
+                    onAbrirEstadisticas = { mostrarEstadisticas = true },
                     categorias = listaCategorias,
                     // Crear y eliminar categorías: los mismos roles que pueden editar el inventario
                     onCrearCategoria = if (rol.puedeEditarInventario) {
