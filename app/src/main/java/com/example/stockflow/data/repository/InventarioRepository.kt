@@ -317,6 +317,17 @@ class InventarioRepository(
             )
         ).toInt()
 
+        // Un producto que existía pero sin stock (no se ve en Inventario) toma la categoría elegida.
+        // Si todavía tiene stock se respeta la suya: no se mueve algo que el usuario ya ve en otra categoría.
+        var categoriaNueva: String? = null
+        if (existente != null && loteDao.obtenerPorProducto(existente.idProducto).none { it.cantidadActual > 0 }) {
+            val idCategoria = idCategoriaPorNombre(categoria)
+            if (idCategoria != existente.idCategoria) {
+                productoDao.actualizar(existente.copy(idCategoria = idCategoria))
+                categoriaNueva = categoriaDao.obtenerPorId(idCategoria)?.nombre ?: categoria
+            }
+        }
+
         val idLote = loteDao.insertar(
             LoteEntity(idProducto = idProducto, cantidadActual = cantidad, fechaVencimiento = vencimiento)
         )
@@ -333,6 +344,7 @@ class InventarioRepository(
                     add("Producto nuevo en ${categoriaDao.obtenerPorId(idCategoriaPorNombre(categoria))?.nombre ?: categoria}")
                     add("Precio: ${textoPrecio(precio ?: 0.0)}")
                 }
+                categoriaNueva?.let { add("Pasó a la categoría $it") }
             }
         )
         idLote

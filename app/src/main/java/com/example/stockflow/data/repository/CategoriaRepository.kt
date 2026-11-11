@@ -52,15 +52,23 @@ class CategoriaRepository(private val database: StockFlowDatabase, private val i
         }
     }
 
-    /** Elimina la categoría. No se puede borrar si tiene productos ni si es la última. */
+    /**
+     * Elimina la categoría. No se puede borrar si tiene productos con stock ni si es la última.
+     * Los productos sin stock que queden adentro (no se ven, pero siguen en la base porque sus
+     * movimientos y ventas los referencian) pasan a "Sin categoría" o a la primera que quede.
+     */
     suspend fun eliminar(idCategoria: Int): ResultadoEliminar = database.withTransaction {
         val todas = categoriaDao.obtenerDelLocal(idLocal)
         val aBorrar = todas.firstOrNull { it.idCategoria == idCategoria }
             ?: throw IllegalArgumentException("La categoría ya no existe")
-        val cantidad = categoriaDao.contarProductos(aBorrar.idCategoria)
+        val cantidad = categoriaDao.contarProductosConStock(aBorrar.idCategoria)
         if (cantidad > 0) return@withTransaction ResultadoEliminar.TieneProductos(cantidad)
         if (todas.size <= 1) return@withTransaction ResultadoEliminar.EsLaUltima
 
+        val restantes = todas.filter { it.idCategoria != aBorrar.idCategoria }
+        val destino = restantes.firstOrNull { it.nombre.equals(NOMBRE_SIN_CATEGORIA, ignoreCase = true) }
+            ?: restantes.first()
+        categoriaDao.moverProductos(desde = aBorrar.idCategoria, hacia = destino.idCategoria)
         categoriaDao.eliminarPorId(aBorrar.idCategoria)
         ResultadoEliminar.Eliminada
     }

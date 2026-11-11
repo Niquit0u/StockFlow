@@ -32,9 +32,20 @@ interface CategoriaDao {
     @Query("SELECT * FROM categorias WHERE idCategoria = :idCategoria")
     suspend fun obtenerPorId(idCategoria: Int): CategoriaEntity?
 
-    // Una categoría con productos no se puede borrar
-    @Query("SELECT COUNT(*) FROM productos WHERE idCategoria = :idCategoria")
-    suspend fun contarProductos(idCategoria: Int): Int
+    // Una categoría con productos con stock no se puede borrar.
+    // Los productos sin stock (lotes eliminados, en 0) no se ven en Inventario, así que no cuentan.
+    @Query(
+        """
+        SELECT COUNT(DISTINCT productos.idProducto) FROM productos
+        INNER JOIN lotes ON lotes.idProducto = productos.idProducto
+        WHERE productos.idCategoria = :idCategoria AND lotes.cantidadActual > 0
+        """
+    )
+    suspend fun contarProductosConStock(idCategoria: Int): Int
+
+    // Pasa todos los productos de una categoría a otra (los que quedan sin stock al borrarla)
+    @Query("UPDATE productos SET idCategoria = :hacia WHERE idCategoria = :desde")
+    suspend fun moverProductos(desde: Int, hacia: Int)
 
     @Query("DELETE FROM categorias WHERE idCategoria = :idCategoria")
     suspend fun eliminarPorId(idCategoria: Int)
